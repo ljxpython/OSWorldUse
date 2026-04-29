@@ -1,0 +1,190 @@
+{
+  "template_type": "flowchart",
+  "style": 1,
+  "width": 1180,
+  "height": 780,
+  "title": "OSWorld 学习与运行路径图",
+  "subtitle": "先看骨架，再跑 smoke test，再读执行链，最后扩展 Agent",
+  "nodes": [
+    {
+      "id": "start",
+      "kind": "process",
+      "x": 470,
+      "y": 40,
+      "width": 220,
+      "height": 56,
+      "label": "开始学习项目"
+    },
+    {
+      "id": "readme",
+      "kind": "process",
+      "x": 470,
+      "y": 130,
+      "width": 220,
+      "height": 56,
+      "label": "读 README"
+    },
+    {
+      "id": "choose",
+      "kind": "decision",
+      "x": 500,
+      "y": 230,
+      "width": 160,
+      "height": 90,
+      "label": "先学什么?"
+    },
+    {
+      "id": "quick",
+      "kind": "process",
+      "x": 140,
+      "y": 360,
+      "width": 240,
+      "height": 64,
+      "label": "跑 quickstart.py / 确认环境能起"
+    },
+    {
+      "id": "arch",
+      "kind": "process",
+      "x": 470,
+      "y": 360,
+      "width": 220,
+      "height": 64,
+      "label": "看 DesktopEnv / 理解 reset-step-eval"
+    },
+    {
+      "id": "task",
+      "kind": "process",
+      "x": 800,
+      "y": 360,
+      "width": 240,
+      "height": 64,
+      "label": "看 task json / 理解 instruction-config-evaluator"
+    },
+    {
+      "id": "runner",
+      "kind": "process",
+      "x": 140,
+      "y": 500,
+      "width": 240,
+      "height": 64,
+      "label": "读 lib_run_single.py / 串起单任务链"
+    },
+    {
+      "id": "agent",
+      "kind": "process",
+      "x": 470,
+      "y": 500,
+      "width": 220,
+      "height": 64,
+      "label": "读 mm_agents/agent.py / 看 predict 接口"
+    },
+    {
+      "id": "parallel",
+      "kind": "process",
+      "x": 800,
+      "y": 500,
+      "width": 240,
+      "height": 64,
+      "label": "读 run_multienv.py / 看批量跑分"
+    },
+    {
+      "id": "practice",
+      "kind": "process",
+      "x": 470,
+      "y": 640,
+      "width": 220,
+      "height": 64,
+      "label": "改自定义 Agent / 换 provider 或 model"
+    },
+    {
+      "id": "end",
+      "kind": "process",
+      "x": 470,
+      "y": 720,
+      "width": 220,
+      "height": 40,
+      "label": "开始正式实验"
+    }
+  ],
+  "arrows": [
+    {
+      "source": "start",
+      "target": "readme",
+      "flow": "control"
+    },
+    {
+      "source": "readme",
+      "target": "choose",
+      "flow": "control"
+    },
+    {
+      "source": "choose",
+      "target": "quick",
+      "flow": "read",
+      "label": "先跑起来"
+    },
+    {
+      "source": "choose",
+      "target": "arch",
+      "flow": "read",
+      "label": "先看骨架"
+    },
+    {
+      "source": "choose",
+      "target": "task",
+      "flow": "read",
+      "label": "先看任务"
+    },
+    {
+      "source": "quick",
+      "target": "runner",
+      "flow": "control"
+    },
+    {
+      "source": "arch",
+      "target": "agent",
+      "flow": "control"
+    },
+    {
+      "source": "task",
+      "target": "parallel",
+      "flow": "control"
+    },
+    {
+      "source": "runner",
+      "target": "practice",
+      "flow": "feedback"
+    },
+    {
+      "source": "agent",
+      "target": "practice",
+      "flow": "feedback"
+    },
+    {
+      "source": "parallel",
+      "target": "practice",
+      "flow": "feedback"
+    },
+    {
+      "source": "practice",
+      "target": "end",
+      "flow": "control"
+    }
+  ],
+  "legend": [
+    {
+      "flow": "control",
+      "label": "推荐学习顺序"
+    },
+    {
+      "flow": "read",
+      "label": "不同切入点"
+    },
+    {
+      "flow": "feedback",
+      "label": "汇合到实践"
+    }
+  ],
+  "legend_position": "bottom-left",
+  "legend_y": 748
+}

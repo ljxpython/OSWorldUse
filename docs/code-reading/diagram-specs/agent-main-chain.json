@@ -1,0 +1,387 @@
+{
+  "style": 1,
+  "width": 1600,
+  "height": 1120,
+  "title": "OSWorld Agent Runtime Main Chain",
+  "subtitle": "从命令行启动，到任务注入、Agent 推理、动作执行、评测产物落盘",
+  "legend_position": "bottom-left",
+  "legend_box": true,
+  "footer": "关键主线：run_multienv_xxx.py -> lib_run_single.* -> DesktopEnv.reset/_get_obs/step/evaluate -> mm_agents/*",
+  "containers": [
+    {
+      "x": 60,
+      "y": 110,
+      "width": 1480,
+      "height": 145,
+      "label": "01 Entry",
+      "subtitle": "命令、任务列表、进程入口",
+      "side_label": "输入层"
+    },
+    {
+      "x": 60,
+      "y": 290,
+      "width": 1480,
+      "height": 250,
+      "label": "02 Benchmark Runtime",
+      "subtitle": "标准 rollout 调用 DesktopEnv.* 与 agent.reset / predict",
+      "side_label": "运行层"
+    },
+    {
+      "x": 60,
+      "y": 575,
+      "width": 1480,
+      "height": 220,
+      "label": "03 Agent Reasoning",
+      "subtitle": "消息拼装、模型调用、动作解析或适配",
+      "side_label": "推理层"
+    },
+    {
+      "x": 60,
+      "y": 825,
+      "width": 1480,
+      "height": 220,
+      "label": "04 Execution + Evaluation",
+      "subtitle": "控制器执行动作、GUI 状态变化、评测打分与结果落盘",
+      "side_label": "执行层"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "user",
+      "kind": "user_avatar",
+      "x": 90,
+      "y": 155,
+      "width": 220,
+      "height": 68,
+      "label": "你 / CLI",
+      "sublabel": "uv run python ..."
+    },
+    {
+      "id": "runner",
+      "kind": "terminal",
+      "x": 500,
+      "y": 150,
+      "width": 330,
+      "height": 96,
+      "label": "run_multienv_xxx.py",
+      "sublabel": "parse args + build env/agent"
+    },
+    {
+      "id": "single",
+      "kind": "rect",
+      "x": 995,
+      "y": 160,
+      "width": 260,
+      "height": 76,
+      "label": "单任务循环入口",
+      "sublabel": "lib_run_single.*"
+    },
+    {
+      "id": "meta",
+      "kind": "document",
+      "x": 1320,
+      "y": 145,
+      "width": 180,
+      "height": 92,
+      "label": "task meta",
+      "sublabel": "example ids"
+    },
+    {
+      "id": "envreset",
+      "kind": "rect",
+      "x": 100,
+      "y": 372,
+      "width": 250,
+      "height": 96,
+      "label": "DesktopEnv.reset(...)",
+      "sublabel": "回滚快照 + 启动 app + 执行 config"
+    },
+    {
+      "id": "agentreset",
+      "kind": "rect",
+      "x": 405,
+      "y": 375,
+      "width": 240,
+      "height": 90,
+      "label": "agent.reset(...)",
+      "sublabel": "logger + vm_ip + clear history"
+    },
+    {
+      "id": "obs",
+      "kind": "rect",
+      "x": 700,
+      "y": 376,
+      "width": 230,
+      "height": 88,
+      "label": "DesktopEnv._get_obs()",
+      "sublabel": "screenshot + a11y_tree"
+    },
+    {
+      "id": "predict",
+      "kind": "rect",
+      "x": 980,
+      "y": 372,
+      "width": 250,
+      "height": 96,
+      "label": "agent.predict(...)",
+      "sublabel": "instruction + obs -> response"
+    },
+    {
+      "id": "envstep",
+      "kind": "rect",
+      "x": 1280,
+      "y": 374,
+      "width": 250,
+      "height": 92,
+      "label": "DesktopEnv.step(...)",
+      "sublabel": "执行动作并返回 next obs"
+    },
+    {
+      "id": "agent",
+      "kind": "hexagon",
+      "x": 115,
+      "y": 648,
+      "width": 240,
+      "height": 96,
+      "fill": "#eff6ff",
+      "stroke": "#2563eb",
+      "label": "XxxAgent",
+      "sublabel": "Prompt / Seed / CUA"
+    },
+    {
+      "id": "messages",
+      "kind": "rect",
+      "x": 435,
+      "y": 650,
+      "width": 260,
+      "height": 92,
+      "label": "消息拼装",
+      "sublabel": "history + screenshot + instruction"
+    },
+    {
+      "id": "model",
+      "kind": "double_rect",
+      "x": 785,
+      "y": 640,
+      "width": 250,
+      "height": 104,
+      "fill": "#f0fdf4",
+      "stroke": "#16a34a",
+      "label": "Model API",
+      "sublabel": "OpenAI / Doubao / Claude ..."
+    },
+    {
+      "id": "parser",
+      "kind": "rect",
+      "x": 1120,
+      "y": 650,
+      "width": 290,
+      "height": 92,
+      "label": "动作解析 / 适配",
+      "sublabel": "response -> actions"
+    },
+    {
+      "id": "controller",
+      "kind": "rect",
+      "x": 140,
+      "y": 892,
+      "width": 260,
+      "height": 92,
+      "label": "PythonController / Guest",
+      "sublabel": "鼠标键盘 / 截图 / a11y"
+    },
+    {
+      "id": "vm",
+      "kind": "folder",
+      "x": 515,
+      "y": 880,
+      "width": 280,
+      "height": 108,
+      "label": "VM / App State",
+      "sublabel": "Chrome / Calc / OS apps"
+    },
+    {
+      "id": "evaluator",
+      "kind": "rect",
+      "x": 930,
+      "y": 894,
+      "width": 240,
+      "height": 86,
+      "label": "DesktopEnv.evaluate()",
+      "sublabel": "getter + metric -> score"
+    },
+    {
+      "id": "results",
+      "kind": "folder",
+      "x": 1260,
+      "y": 882,
+      "width": 240,
+      "height": 102,
+      "label": "结果目录",
+      "sublabel": "args.json / traj.jsonl / result.txt / recording.mp4"
+    }
+  ],
+  "arrows": [
+    {
+      "source": "user",
+      "target": "runner",
+      "label": "启动命令",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "runner",
+      "target": "single",
+      "label": "spawn / dispatch",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "meta",
+      "target": "single",
+      "label": "load example",
+      "flow": "data",
+      "source_port": "left",
+      "target_port": "right"
+    },
+    {
+      "source": "single",
+      "target": "envreset",
+      "label": "开始任务",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "envreset",
+      "target": "agentreset",
+      "label": "fresh vm_ip",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "agentreset",
+      "target": "obs",
+      "label": "ready",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "obs",
+      "target": "predict",
+      "label": "obs",
+      "flow": "data",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "predict",
+      "target": "agent",
+      "label": "call",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "agent",
+      "target": "messages",
+      "label": "build prompt",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "messages",
+      "target": "model",
+      "label": "messages",
+      "flow": "data",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "model",
+      "target": "parser",
+      "label": "response",
+      "flow": "data",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "parser",
+      "target": "envstep",
+      "label": "actions",
+      "flow": "control",
+      "source_port": "top",
+      "target_port": "bottom"
+    },
+    {
+      "source": "envstep",
+      "target": "controller",
+      "label": "driver call",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top",
+      "corridor_x": [1410]
+    },
+    {
+      "source": "controller",
+      "target": "vm",
+      "label": "GUI side effects",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "vm",
+      "target": "obs",
+      "label": "next screenshot / tree",
+      "flow": "data",
+      "source_port": "top",
+      "target_port": "bottom",
+      "corridor_x": [655]
+    },
+    {
+      "source": "vm",
+      "target": "evaluator",
+      "label": "final state",
+      "flow": "data",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "evaluator",
+      "target": "results",
+      "label": "score",
+      "flow": "write",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "single",
+      "target": "results",
+      "label": "traj / logs / mp4",
+      "flow": "write",
+      "source_port": "bottom",
+      "target_port": "top",
+      "corridor_x": [1105]
+    }
+  ],
+  "legend": [
+    {
+      "label": "紫色：控制流 / 调用关系",
+      "flow": "control"
+    },
+    {
+      "label": "橙色：观测 / 模型响应 / 评测数据",
+      "flow": "data"
+    },
+    {
+      "label": "绿色：结果写入 / 落盘",
+      "flow": "write"
+    }
+  ]
+}

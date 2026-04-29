@@ -1,0 +1,299 @@
+{
+  "style": 1,
+  "width": 1600,
+  "height": 980,
+  "title": "What You Must Configure Before Practicing Agents",
+  "subtitle": "把你第一次试跑 agent 时真正需要关注的配置点收拢到一张图里",
+  "legend_position": "bottom-left",
+  "legend_box": true,
+  "footer": "推荐第一步：先用 docs/code-reading/examples/test_one_chrome.json 跑单任务，再看 traj.jsonl / runtime.log / recording.mp4",
+  "containers": [
+    {
+      "x": 70,
+      "y": 130,
+      "width": 430,
+      "height": 690,
+      "label": "01 Provider + Task",
+      "subtitle": "虚拟机路径、provider、单任务 smoke test",
+      "side_label": "输入"
+    },
+    {
+      "x": 545,
+      "y": 130,
+      "width": 510,
+      "height": 690,
+      "label": "02 CLI Args",
+      "subtitle": "运行脚本时显式传入的关键参数",
+      "side_label": "命令行"
+    },
+    {
+      "x": 1100,
+      "y": 130,
+      "width": 430,
+      "height": 690,
+      "label": "03 Agent Secrets + Outputs",
+      "subtitle": ".env 中的模型凭据，以及结果目录里的关键证据",
+      "side_label": "环境变量"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "vmx",
+      "kind": "folder",
+      "x": 120,
+      "y": 190,
+      "width": 320,
+      "height": 96,
+      "label": "VMware .vmx 路径",
+      "sublabel": "/Users/.../Ubuntu 64 位 ARM 26.04.vmx"
+    },
+    {
+      "id": "provider",
+      "kind": "rect",
+      "x": 120,
+      "y": 330,
+      "width": 320,
+      "height": 88,
+      "label": "--provider_name vmware",
+      "sublabel": "第一次实践先保持和当前环境一致"
+    },
+    {
+      "id": "meta",
+      "kind": "document",
+      "x": 120,
+      "y": 470,
+      "width": 320,
+      "height": 100,
+      "label": "单任务 meta",
+      "sublabel": "docs/code-reading/examples/test_one_chrome.json"
+    },
+    {
+      "id": "smoke",
+      "kind": "rect",
+      "x": 120,
+      "y": 625,
+      "width": 320,
+      "height": 92,
+      "label": "Smoke test 目标",
+      "sublabel": "先确认链路通，再追求 benchmark 分数"
+    },
+    {
+      "id": "runner",
+      "kind": "terminal",
+      "x": 670,
+      "y": 205,
+      "width": 260,
+      "height": 96,
+      "label": "run_multienv_xxx.py",
+      "sublabel": "Prompt / Seed / CUA"
+    },
+    {
+      "id": "args1",
+      "kind": "rect",
+      "x": 625,
+      "y": 350,
+      "width": 350,
+      "height": 90,
+      "label": "必须先确定",
+      "sublabel": "--action_space pyautogui + --observation_type screenshot"
+    },
+    {
+      "id": "args2",
+      "kind": "rect",
+      "x": 625,
+      "y": 485,
+      "width": 350,
+      "height": 94,
+      "label": "推荐初始参数",
+      "sublabel": "--num_envs 1 + --result_dir ./results/... + --model ..."
+    },
+    {
+      "id": "args3",
+      "kind": "rect",
+      "x": 625,
+      "y": 625,
+      "width": 350,
+      "height": 96,
+      "label": "显式传入",
+      "sublabel": "--path_to_vm / --provider_name / --test_all_meta_path"
+    },
+    {
+      "id": "envfile",
+      "kind": "document",
+      "x": 1160,
+      "y": 185,
+      "width": 310,
+      "height": 88,
+      "label": ".env",
+      "sublabel": "repo 根目录，runner 启动时自动 load"
+    },
+    {
+      "id": "promptkey",
+      "kind": "rect",
+      "x": 1160,
+      "y": 320,
+      "width": 310,
+      "height": 88,
+      "label": "PromptAgent",
+      "sublabel": "OPENAI_API_KEY"
+    },
+    {
+      "id": "seedkey",
+      "kind": "rect",
+      "x": 1160,
+      "y": 445,
+      "width": 310,
+      "height": 88,
+      "label": "SeedAgent",
+      "sublabel": "DOUBAO_API_KEY + DOUBAO_API_URL"
+    },
+    {
+      "id": "cuakey",
+      "kind": "rect",
+      "x": 1160,
+      "y": 570,
+      "width": 310,
+      "height": 88,
+      "label": "OpenAICUAAgent",
+      "sublabel": "OPENAI_API_KEY_CUA"
+    },
+    {
+      "id": "outputs",
+      "kind": "folder",
+      "x": 1145,
+      "y": 705,
+      "width": 340,
+      "height": 98,
+      "label": "跑完以后先看",
+      "sublabel": "traj.jsonl / runtime.log / recording.mp4 / result.txt"
+    }
+  ],
+  "arrows": [
+    {
+      "source": "vmx",
+      "target": "runner",
+      "label": "--path_to_vm",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "provider",
+      "target": "runner",
+      "label": "--provider_name",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "meta",
+      "target": "runner",
+      "label": "--test_all_meta_path",
+      "flow": "data",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "smoke",
+      "target": "runner",
+      "label": "单任务验证",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "runner",
+      "target": "args1",
+      "label": "行为 / 观测协议",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "runner",
+      "target": "args2",
+      "label": "运行规模",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "runner",
+      "target": "args3",
+      "label": "环境指向",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "envfile",
+      "target": "promptkey",
+      "label": "baseline key",
+      "flow": "data",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "envfile",
+      "target": "seedkey",
+      "label": "seed key",
+      "flow": "data",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "envfile",
+      "target": "cuakey",
+      "label": "CUA key",
+      "flow": "data",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "promptkey",
+      "target": "runner",
+      "label": "PromptAgent",
+      "flow": "data",
+      "source_port": "left",
+      "target_port": "right"
+    },
+    {
+      "source": "seedkey",
+      "target": "runner",
+      "label": "SeedAgent",
+      "flow": "data",
+      "source_port": "left",
+      "target_port": "right"
+    },
+    {
+      "source": "cuakey",
+      "target": "runner",
+      "label": "OpenAICUAAgent",
+      "flow": "data",
+      "source_port": "left",
+      "target_port": "right"
+    },
+    {
+      "source": "runner",
+      "target": "outputs",
+      "label": "产物落盘",
+      "flow": "write",
+      "source_port": "right",
+      "target_port": "left"
+    }
+  ],
+  "legend": [
+    {
+      "label": "紫色：你显式控制的 CLI / 路径参数",
+      "flow": "control"
+    },
+    {
+      "label": "橙色：.env 里的模型密钥或 meta 数据",
+      "flow": "data"
+    },
+    {
+      "label": "绿色：跑完后需要检查的产物",
+      "flow": "write"
+    }
+  ]
+}

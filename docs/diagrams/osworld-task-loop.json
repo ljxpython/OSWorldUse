@@ -1,0 +1,111 @@
+{
+  "template_type": "sequence",
+  "style": 1,
+  "width": 1120,
+  "height": 760,
+  "title": "OSWorld 单任务执行链",
+  "subtitle": "从 task json 到结果评分的端到端流程",
+  "participants": [
+    {
+      "id": "runner",
+      "label": "Runner"
+    },
+    {
+      "id": "env",
+      "label": "DesktopEnv"
+    },
+    {
+      "id": "setup",
+      "label": "SetupController"
+    },
+    {
+      "id": "agent",
+      "label": "Agent"
+    },
+    {
+      "id": "server",
+      "label": "Guest Server"
+    },
+    {
+      "id": "eval",
+      "label": "Evaluator"
+    }
+  ],
+  "messages": [
+    {
+      "from": "runner",
+      "to": "env",
+      "label": "load task + reset()"
+    },
+    {
+      "from": "env",
+      "to": "setup",
+      "label": "setup(task config)"
+    },
+    {
+      "from": "setup",
+      "to": "server",
+      "label": "launch/upload/open/prep"
+    },
+    {
+      "from": "runner",
+      "to": "agent",
+      "label": "reset(vm_ip)"
+    },
+    {
+      "from": "runner",
+      "to": "env",
+      "label": "_get_obs()"
+    },
+    {
+      "from": "env",
+      "to": "server",
+      "label": "screenshot / a11y / terminal"
+    },
+    {
+      "from": "runner",
+      "to": "agent",
+      "label": "predict(instruction, obs)"
+    },
+    {
+      "from": "agent",
+      "to": "runner",
+      "label": "actions[]"
+    },
+    {
+      "from": "runner",
+      "to": "env",
+      "label": "step(action)"
+    },
+    {
+      "from": "env",
+      "to": "server",
+      "label": "execute action"
+    },
+    {
+      "from": "runner",
+      "to": "runner",
+      "label": "save traj.jsonl + png"
+    },
+    {
+      "from": "runner",
+      "to": "env",
+      "label": "loop until done/max_steps"
+    },
+    {
+      "from": "runner",
+      "to": "env",
+      "label": "evaluate()"
+    },
+    {
+      "from": "env",
+      "to": "eval",
+      "label": "getter + metric"
+    },
+    {
+      "from": "eval",
+      "to": "runner",
+      "label": "result.txt + score"
+    }
+  ]
+}

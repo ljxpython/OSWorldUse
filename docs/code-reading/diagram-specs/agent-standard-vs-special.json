@@ -1,0 +1,284 @@
+{
+  "style": 1,
+  "width": 1600,
+  "height": 980,
+  "title": "Standard Runner vs Special-case Runner",
+  "subtitle": "左边是 PromptAgent / SeedAgent 的标准接法，右边是 OpenAICUAAgent 的特例接法",
+  "legend_position": "bottom-left",
+  "legend_box": true,
+  "footer": "核心差异：标准链路直接 env.step(...)；特例链路先 agent.step(...) 再 env.step(...)",
+  "containers": [
+    {
+      "x": 70,
+      "y": 120,
+      "width": 690,
+      "height": 730,
+      "label": "Standard Lane",
+      "subtitle": "PromptAgent / SeedAgent",
+      "side_label": "标准路径"
+    },
+    {
+      "x": 840,
+      "y": 120,
+      "width": 690,
+      "height": 730,
+      "label": "Special Lane",
+      "subtitle": "OpenAICUAAgent",
+      "side_label": "特例路径"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "std_runner",
+      "kind": "terminal",
+      "x": 165,
+      "y": 175,
+      "width": 260,
+      "height": 96,
+      "label": "run_multienv.py",
+      "sublabel": "或 run_multienv_seedagent.py"
+    },
+    {
+      "id": "std_agent",
+      "kind": "hexagon",
+      "x": 165,
+      "y": 315,
+      "width": 260,
+      "height": 92,
+      "fill": "#eff6ff",
+      "stroke": "#2563eb",
+      "label": "PromptAgent / SeedAgent",
+      "sublabel": "reset + predict"
+    },
+    {
+      "id": "std_loop",
+      "kind": "rect",
+      "x": 165,
+      "y": 445,
+      "width": 260,
+      "height": 88,
+      "label": "run_single_example(...)",
+      "sublabel": "标准 rollout"
+    },
+    {
+      "id": "std_predict",
+      "kind": "rect",
+      "x": 485,
+      "y": 320,
+      "width": 235,
+      "height": 92,
+      "label": "predict(...)",
+      "sublabel": "response, actions"
+    },
+    {
+      "id": "std_step",
+      "kind": "rect",
+      "x": 485,
+      "y": 455,
+      "width": 235,
+      "height": 82,
+      "label": "env.step(action)",
+      "sublabel": "直接执行"
+    },
+    {
+      "id": "cua_runner",
+      "kind": "terminal",
+      "x": 935,
+      "y": 175,
+      "width": 270,
+      "height": 96,
+      "label": "run_multienv_openaicua.py",
+      "sublabel": "专用 runner"
+    },
+    {
+      "id": "cua_agent",
+      "kind": "hexagon",
+      "x": 935,
+      "y": 315,
+      "width": 270,
+      "height": 92,
+      "fill": "#fef2f2",
+      "stroke": "#dc2626",
+      "label": "OpenAICUAAgent + env",
+      "sublabel": "predict + step"
+    },
+    {
+      "id": "cua_loop",
+      "kind": "rect",
+      "x": 935,
+      "y": 445,
+      "width": 270,
+      "height": 88,
+      "label": "run_single_example_openaicua(...)",
+      "sublabel": "特例 rollout"
+    },
+    {
+      "id": "cua_predict",
+      "kind": "rect",
+      "x": 1265,
+      "y": 305,
+      "width": 210,
+      "height": 108,
+      "label": "predict(...)",
+      "sublabel": "predict_info + actions + state_correct"
+    },
+    {
+      "id": "cua_step",
+      "kind": "rect",
+      "x": 1265,
+      "y": 445,
+      "width": 210,
+      "height": 98,
+      "label": "agent.step(action)",
+      "sublabel": "内部再调 env.step(...)"
+    },
+    {
+      "id": "env",
+      "kind": "rect",
+      "x": 640,
+      "y": 615,
+      "width": 320,
+      "height": 88,
+      "label": "DesktopEnv + VM",
+      "sublabel": "两条路径最终都操作同一个环境抽象"
+    },
+    {
+      "id": "results",
+      "kind": "folder",
+      "x": 635,
+      "y": 750,
+      "width": 330,
+      "height": 92,
+      "label": "共同产物",
+      "sublabel": "traj.jsonl / result.txt / recording.mp4 / runtime.log"
+    }
+  ],
+  "arrows": [
+    {
+      "source": "std_runner",
+      "target": "std_agent",
+      "label": "",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "std_runner",
+      "target": "std_loop",
+      "label": "",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "std_loop",
+      "target": "std_predict",
+      "label": "call predict",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "std_predict",
+      "target": "std_step",
+      "label": "actions",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "std_step",
+      "target": "env",
+      "label": "direct step",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "left"
+    },
+    {
+      "source": "cua_runner",
+      "target": "cua_agent",
+      "label": "",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "cua_runner",
+      "target": "cua_loop",
+      "label": "",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "cua_loop",
+      "target": "cua_predict",
+      "label": "call predict",
+      "flow": "control",
+      "source_port": "right",
+      "target_port": "left"
+    },
+    {
+      "source": "cua_predict",
+      "target": "cua_step",
+      "label": "action dict",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "cua_step",
+      "target": "env",
+      "label": "step via agent",
+      "flow": "control",
+      "source_port": "bottom",
+      "target_port": "right"
+    },
+    {
+      "source": "env",
+      "target": "std_predict",
+      "label": "obs loop",
+      "flow": "data",
+      "source_port": "left",
+      "target_port": "bottom"
+    },
+    {
+      "source": "env",
+      "target": "cua_predict",
+      "label": "obs loop",
+      "flow": "data",
+      "source_port": "right",
+      "target_port": "bottom"
+    },
+    {
+      "source": "std_loop",
+      "target": "results",
+      "label": "logs / score",
+      "flow": "write",
+      "source_port": "bottom",
+      "target_port": "top"
+    },
+    {
+      "source": "cua_loop",
+      "target": "results",
+      "label": "logs / score",
+      "flow": "write",
+      "source_port": "bottom",
+      "target_port": "top"
+    }
+  ],
+  "legend": [
+    {
+      "label": "紫色：标准或特例中的控制调用",
+      "flow": "control"
+    },
+    {
+      "label": "橙色：观测 / response / state_correct",
+      "flow": "data"
+    },
+    {
+      "label": "绿色：结果写入",
+      "flow": "write"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "template_type": "mind-map",
+  "style": 1,
+  "width": 1180,
+  "height": 760,
+  "title": "OSWorld 目录与模块功能图",
+  "subtitle": "学习源码时先按职责拆，再按调用链串起来",
+  "center": {
+    "label": "OSWorld",
+    "kind": "double_rect"
+  },
+  "branches": [
+    {
+      "label": "desktop_env",
+      "children": [
+        "DesktopEnv 环境抽象",
+        "providers 虚拟化/云平台",
+        "controllers 控制与初始化",
+        "server 远端桌面 API",
+        "evaluators 自动判分"
+      ]
+    },
+    {
+      "label": "mm_agents",
+      "children": [
+        "PromptAgent 基线",
+        "多模型适配",
+        "动作解析",
+        "观测组织"
+      ]
+    },
+    {
+      "label": "evaluation_examples",
+      "children": [
+        "任务列表 test_all.json",
+        "examples Ubuntu 任务",
+        "examples_windows Windows 任务",
+        "settings 账号/代理配置"
+      ]
+    },
+    {
+      "label": "scripts",
+      "children": [
+        "run_multienv 并行跑分",
+        "多模型 runner 变体",
+        "手工检查脚本"
+      ]
+    },
+    {
+      "label": "results & monitor",
+      "children": [
+        "traj.jsonl 轨迹",
+        "截图与录像",
+        "show_result 汇总",
+        "monitor Web 面板"
+      ]
+    },
+    {
+      "label": "entry files",
+      "children": [
+        "quickstart 最小示例",
+        "run.py 串行入口",
+        "README 安装与实验说明"
+      ]
+    }
+  ]
+}

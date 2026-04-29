@@ -1,0 +1,522 @@
+{
+  "template_type": "architecture",
+  "style": 1,
+  "width": 1160,
+  "height": 760,
+  "title": "OSWorld 项目总架构",
+  "subtitle": "桌面环境 Benchmark：环境层、任务层、Agent 层、评测与结果层",
+  "containers": [
+    {
+      "x": 40,
+      "y": 100,
+      "width": 1080,
+      "height": 90,
+      "label": "入口层",
+      "stroke": "#dbeafe",
+      "fill": "none"
+    },
+    {
+      "x": 40,
+      "y": 220,
+      "width": 1080,
+      "height": 140,
+      "label": "执行编排层",
+      "stroke": "#e9d5ff",
+      "fill": "#faf5ff"
+    },
+    {
+      "x": 40,
+      "y": 390,
+      "width": 1080,
+      "height": 170,
+      "label": "环境与任务层",
+      "stroke": "#bbf7d0",
+      "fill": "#f0fdf4"
+    },
+    {
+      "x": 40,
+      "y": 590,
+      "width": 1080,
+      "height": 120,
+      "label": "结果与可视化层",
+      "stroke": "#fed7aa",
+      "fill": "#fff7ed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "quick",
+      "kind": "rect",
+      "x": 80,
+      "y": 118,
+      "width": 180,
+      "height": 54,
+      "label": "quickstart.py",
+      "type_label": "SMOKE TEST",
+      "fill": "#ffffff",
+      "stroke": "#d1d5db"
+    },
+    {
+      "id": "run",
+      "kind": "double_rect",
+      "x": 330,
+      "y": 114,
+      "width": 210,
+      "height": 62,
+      "label": "run.py",
+      "type_label": "SINGLE RUNNER",
+      "fill": "#eff6ff",
+      "stroke": "#2563eb"
+    },
+    {
+      "id": "multi",
+      "kind": "double_rect",
+      "x": 620,
+      "y": 114,
+      "width": 270,
+      "height": 62,
+      "label": "scripts/python/run_multienv.py",
+      "type_label": "PARALLEL RUNNER",
+      "fill": "#eff6ff",
+      "stroke": "#2563eb"
+    },
+    {
+      "id": "agent",
+      "kind": "rect",
+      "x": 110,
+      "y": 264,
+      "width": 210,
+      "height": 60,
+      "label": "mm_agents/*",
+      "type_label": "AGENT INTERFACE",
+      "fill": "#ffffff",
+      "stroke": "#d1d5db"
+    },
+    {
+      "id": "single",
+      "kind": "double_rect",
+      "x": 400,
+      "y": 256,
+      "width": 290,
+      "height": 76,
+      "label": "lib_run_single.py",
+      "type_label": "TASK LOOP",
+      "fill": "#f5f3ff",
+      "stroke": "#8b5cf6"
+    },
+    {
+      "id": "env",
+      "kind": "double_rect",
+      "x": 800,
+      "y": 256,
+      "width": 220,
+      "height": 76,
+      "label": "DesktopEnv",
+      "type_label": "GYM ENV",
+      "fill": "#f5f3ff",
+      "stroke": "#8b5cf6"
+    },
+    {
+      "id": "provider",
+      "kind": "hexagon",
+      "x": 90,
+      "y": 430,
+      "width": 190,
+      "height": 82,
+      "label": "providers",
+      "type_label": "VMWARE / DOCKER / AWS",
+      "fill": "#ecfdf5",
+      "stroke": "#10b981"
+    },
+    {
+      "id": "server",
+      "kind": "rect",
+      "x": 330,
+      "y": 430,
+      "width": 220,
+      "height": 82,
+      "label": "desktop_env/server",
+      "type_label": "REMOTE DESKTOP API",
+      "fill": "#ffffff",
+      "stroke": "#10b981"
+    },
+    {
+      "id": "controller",
+      "kind": "rect",
+      "x": 610,
+      "y": 430,
+      "width": 210,
+      "height": 82,
+      "label": "controllers",
+      "type_label": "PYTHON + SETUP",
+      "fill": "#ffffff",
+      "stroke": "#10b981"
+    },
+    {
+      "id": "tasks",
+      "kind": "document",
+      "x": 880,
+      "y": 430,
+      "width": 190,
+      "height": 82,
+      "label": "evaluation_examples",
+      "fill": "#ffffff",
+      "stroke": "#10b981",
+      "line_stroke": "#86efac",
+      "sublabel": "task json + evaluator"
+    },
+    {
+      "id": "results",
+      "kind": "cylinder",
+      "x": 210,
+      "y": 618,
+      "width": 150,
+      "height": 70,
+      "label": "results/",
+      "sublabel": "traj + screenshots",
+      "fill": "#fff7ed",
+      "stroke": "#f97316"
+    },
+    {
+      "id": "show",
+      "kind": "rect",
+      "x": 460,
+      "y": 622,
+      "width": 190,
+      "height": 62,
+      "label": "show_result.py",
+      "type_label": "SUMMARY",
+      "fill": "#ffffff",
+      "stroke": "#f97316"
+    },
+    {
+      "id": "monitor",
+      "kind": "rect",
+      "x": 760,
+      "y": 622,
+      "width": 210,
+      "height": 62,
+      "label": "monitor/",
+      "type_label": "WEB VIEWER",
+      "fill": "#ffffff",
+      "stroke": "#f97316"
+    }
+  ],
+  "arrows": [
+    {
+      "source": "quick",
+      "target": "env",
+      "flow": "control",
+      "route_points": [
+        [
+          170,
+          190
+        ],
+        [
+          170,
+          210
+        ],
+        [
+          910,
+          210
+        ],
+        [
+          910,
+          256
+        ]
+      ]
+    },
+    {
+      "source": "run",
+      "target": "single",
+      "flow": "control",
+      "label": "串行任务",
+      "route_points": [
+        [
+          435,
+          176
+        ],
+        [
+          435,
+          220
+        ],
+        [
+          500,
+          220
+        ],
+        [
+          500,
+          256
+        ]
+      ]
+    },
+    {
+      "source": "multi",
+      "target": "single",
+      "flow": "control",
+      "route_points": [
+        [
+          755,
+          176
+        ],
+        [
+          755,
+          210
+        ],
+        [
+          590,
+          210
+        ],
+        [
+          590,
+          256
+        ]
+      ]
+    },
+    {
+      "source": "agent",
+      "target": "single",
+      "flow": "read",
+      "label": "predict()",
+      "route_points": [
+        [
+          320,
+          294
+        ],
+        [
+          360,
+          294
+        ],
+        [
+          360,
+          294
+        ],
+        [
+          400,
+          294
+        ]
+      ]
+    },
+    {
+      "source": "single",
+      "target": "env",
+      "flow": "control",
+      "label": "reset/step/eval",
+      "route_points": [
+        [
+          690,
+          294
+        ],
+        [
+          740,
+          294
+        ],
+        [
+          740,
+          294
+        ],
+        [
+          800,
+          294
+        ]
+      ]
+    },
+    {
+      "source": "env",
+      "target": "provider",
+      "flow": "write",
+      "route_points": [
+        [
+          860,
+          332
+        ],
+        [
+          860,
+          575
+        ],
+        [
+          185,
+          575
+        ],
+        [
+          185,
+          512
+        ]
+      ],
+      "dashed": true
+    },
+    {
+      "source": "env",
+      "target": "controller",
+      "flow": "read",
+      "route_points": [
+        [
+          800,
+          294
+        ],
+        [
+          760,
+          294
+        ],
+        [
+          760,
+          471
+        ],
+        [
+          820,
+          471
+        ]
+      ]
+    },
+    {
+      "source": "env",
+      "target": "tasks",
+      "flow": "read",
+      "route_points": [
+        [
+          1020,
+          294
+        ],
+        [
+          1040,
+          294
+        ],
+        [
+          1040,
+          430
+        ],
+        [
+          975,
+          430
+        ]
+      ]
+    },
+    {
+      "source": "provider",
+      "target": "server",
+      "flow": "control",
+      "route_points": [
+        [
+          280,
+          471
+        ],
+        [
+          305,
+          471
+        ],
+        [
+          305,
+          471
+        ],
+        [
+          330,
+          471
+        ]
+      ]
+    },
+    {
+      "source": "server",
+      "target": "controller",
+      "flow": "read",
+      "route_points": [
+        [
+          550,
+          471
+        ],
+        [
+          580,
+          471
+        ],
+        [
+          580,
+          471
+        ],
+        [
+          610,
+          471
+        ]
+      ]
+    },
+    {
+      "source": "single",
+      "target": "results",
+      "flow": "write",
+      "route_points": [
+        [
+          545,
+          332
+        ],
+        [
+          545,
+          640
+        ],
+        [
+          360,
+          640
+        ]
+      ]
+    },
+    {
+      "source": "results",
+      "target": "show",
+      "flow": "read",
+      "route_points": [
+        [
+          360,
+          653
+        ],
+        [
+          400,
+          653
+        ],
+        [
+          400,
+          653
+        ],
+        [
+          460,
+          653
+        ]
+      ]
+    },
+    {
+      "source": "results",
+      "target": "monitor",
+      "flow": "read",
+      "route_points": [
+        [
+          360,
+          670
+        ],
+        [
+          700,
+          670
+        ],
+        [
+          700,
+          653
+        ],
+        [
+          760,
+          653
+        ]
+      ]
+    }
+  ],
+  "legend": [
+    {
+      "flow": "control",
+      "label": "主执行编排"
+    },
+    {
+      "flow": "read",
+      "label": "读取观测/任务/结果"
+    },
+    {
+      "flow": "write",
+      "label": "环境操作 / 结果写入"
+    }
+  ],
+  "legend_position": "bottom-left",
+  "legend_y": 714
+}
