@@ -2558,7 +2558,7 @@ requires-dist = [
     { name = "formulas" },
     { name = "func-timeout" },
     { name = "gdown" },
-    { name = "google-genai", specifier = "~=1.68.0" },
+    { name = "google-genai", specifier = ">=1.68.0" },
     { name = "google-generativeai" },
     { name = "groq" },
     { name = "gymnasium", specifier = "~=0.28.1" },

@@ -132,6 +132,14 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
         elif os_type == "Windows":
             if platform.machine().lower() in ['amd64', 'x86_64']:
                 URL = WINDOWS_X86_URL
+            else:
+                raise RuntimeError(
+                    "Windows VM image is only provided for x86_64 hosts in this repo. "
+                    "You are on Apple Silicon (arm64) macOS, so this Windows VM cannot be downloaded/used via the vmware provider. "
+                    "Use an x86_64 host (Intel Mac/PC) or a cloud provider (aws/docker on x86_64) for Windows tasks."
+                )
+        else:
+            raise ValueError(f"Unsupported os_type: {os_type}")
         
         # Check for HF_ENDPOINT environment variable and replace domain if set to hf-mirror.com
         hf_endpoint = os.environ.get('HF_ENDPOINT')

@@ -276,6 +276,153 @@ VirtualBox 和 VMware 的心智模型很像：
 2. 如果本地没有，就下载
 3. 返回镜像目录路径
 
+#### 镜像下载实战：断点续传（curl）与兜底脚本（Python）
+
+Docker/云端导入镜像（例如 Volcengine 走 TOS 导入 qcow2）时，最容易卡住的反而是“下大文件”。
+
+当前仓库里用到的 qcow2（zip 包）下载入口在：
+
+- Ubuntu：`https://huggingface.co/datasets/xlangai/ubuntu_osworld/resolve/main/Ubuntu.qcow2.zip`
+- Windows：`https://huggingface.co/datasets/xlangai/windows_osworld/resolve/main/Windows-10-x64.qcow2.zip`
+
+建议你把它们统一下载到项目根目录的 `./docker_vm_data/`（与 `desktop_env/providers/docker/manager.py` 的默认目录一致）。
+
+**方案一（推荐）：curl 断点续传 + “Empty reply from server” 的安全恢复**
+
+1) 续传下载（可反复重跑）：
+
+```bash
+mkdir -p docker_vm_data
+
+curl --http1.1 -L --fail --retry 100 --retry-all-errors --retry-delay 5 \
+  -C - --max-time 0 \
+  -o "docker_vm_data/Ubuntu.qcow2.zip" \
+  "https://huggingface.co/datasets/xlangai/ubuntu_osworld/resolve/main/Ubuntu.qcow2.zip"
+
+curl --http1.1 -L --fail --retry 100 --retry-all-errors --retry-delay 5 \
+  -C - --max-time 0 \
+  -o "docker_vm_data/Windows-10-x64.qcow2.zip" \
+  "https://huggingface.co/datasets/xlangai/windows_osworld/resolve/main/Windows-10-x64.qcow2.zip"
+```
+
+2) 如果遇到 `curl: (52) Empty reply from server`，建议先“回退文件到上一次确认的断点位置”再继续，避免把重定向响应的小文本误写进 zip：
+
+```bash
+# 先取当前已下载大小（macOS）
+sz=$(stat -f%z "docker_vm_data/Windows-10-x64.qcow2.zip")
+
+# 回退到这个大小（确保文件尾部干净），然后再继续 -C - 续传
+truncate -s "$sz" "docker_vm_data/Windows-10-x64.qcow2.zip"
+
+# 继续下载（同上）
+curl --http1.1 -L --fail --retry 100 --retry-all-errors --retry-delay 5 \
+  -C - --max-time 0 \
+  -o "docker_vm_data/Windows-10-x64.qcow2.zip" \
+  "https://huggingface.co/datasets/xlangai/windows_osworld/resolve/main/Windows-10-x64.qcow2.zip"
+```
+
+> 备注：如果网络访问 `huggingface.co` 不稳定，可尝试设置 `HF_ENDPOINT=https://hf-mirror.com`（部分下载逻辑会读取这个变量）。
+
+**方案二（兜底）：Python requests 续传脚本（可限制下载字节用于快速验证）**
+
+下面脚本不依赖 `aria2c`，会先 HEAD 拿总大小，再用 `Range` 做断点续传；遇到网络错误会 sleep 并重试。
+
+仓库内已提供可直接使用的脚本：`scripts/python/download_hf_qcow2.py`。
+
+用法示例：
+
+- 正常下载（会一直下到完整文件）：
+  - `uv run python scripts/python/download_hf_qcow2.py ...`
+- 快速验证脚本没问题（只下 1MB 就退出）：
+  - 把 `--max-bytes 1048576` 加上即可
+
+```python
+import argparse
+import os
+import time
+import requests
+
+
+def head_total_size(url: str, timeout: int = 20) -> int:
+    r = requests.head(url, allow_redirects=True, timeout=timeout)
+    r.raise_for_status()
+    return int(r.headers.get("content-length") or 0)
+
+
+def download_with_resume(url: str, out: str, max_bytes: int | None, chunk_mb: int, sleep_sec: float):
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+
+    total = head_total_size(url)
+    print("total_bytes=", total)
+
+    sess = requests.Session()
+
+    while True:
+        pos = os.path.getsize(out) if os.path.exists(out) else 0
+        if total and pos >= total:
+            print("done, size=", pos)
+            return
+
+        # 如果只想验证脚本是否可用：到达 max_bytes 就退出
+        if max_bytes is not None and pos >= max_bytes:
+            print("reached max_bytes, size=", pos)
+            return
+
+        headers = {"Range": f"bytes={pos}-"} if pos else {}
+        try:
+            with sess.get(url, stream=True, allow_redirects=True, timeout=(10, 60), headers=headers) as r:
+                r.raise_for_status()
+                with open(out, "ab" if pos else "wb") as f:
+                    for chunk in r.iter_content(chunk_size=chunk_mb * 1024 * 1024):
+                        if not chunk:
+                            continue
+                        if max_bytes is not None:
+                            remaining = max_bytes - f.tell()
+                            if remaining <= 0:
+                                print("reached max_bytes, size=", f.tell())
+                                return
+                            if len(chunk) > remaining:
+                                f.write(chunk[:remaining])
+                                print("reached max_bytes, size=", f.tell())
+                                return
+                        f.write(chunk)
+            time.sleep(sleep_sec)
+        except Exception as e:
+            print("error:", type(e).__name__, e)
+            time.sleep(5)
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--url", required=True)
+    p.add_argument("--out", required=True)
+    p.add_argument("--max-bytes", type=int, default=None)
+    p.add_argument("--chunk-mb", type=int, default=8)
+    p.add_argument("--sleep-sec", type=float, default=0.5)
+    args = p.parse_args()
+    download_with_resume(args.url, args.out, args.max_bytes, args.chunk_mb, args.sleep_sec)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+（快速验证示例：只下载 1MB，检查网络/权限/重定向链路都 OK）
+
+```bash
+uv run python scripts/python/download_hf_qcow2.py \
+  --url "https://huggingface.co/datasets/xlangai/windows_osworld/resolve/main/Windows-10-x64.qcow2.zip" \
+  --out "docker_vm_data/Windows-10-x64.qcow2.zip.test1m" \
+  --max-bytes 1048576
+```
+
+下载完成后，记得解压得到真正的 `.qcow2`：
+
+```bash
+unzip -o docker_vm_data/Ubuntu.qcow2.zip -d docker_vm_data
+unzip -o docker_vm_data/Windows-10-x64.qcow2.zip -d docker_vm_data
+```
+
 这里没有复杂 registry。
 
 很多 `VMManager` 抽象方法在 Docker 里实际上是空实现：
