@@ -50,25 +50,34 @@ class VMwareProvider(Provider):
                     " ".join(command),
                     (stderr or "").strip() or "<empty>",
                 )
+                # vmrun sometimes prints errors to stdout; surface it for debugging.
+                if (stdout or "").strip():
+                    logger.warning("Command stdout: %s", stdout.strip())
             return None
 
     def start_emulator(self, path_to_vm: str, headless: bool, os_type: str):
         print("Starting VMware VM...")
         logger.info("Starting VMware VM...")
 
+        normalized_path_to_vm = os.path.abspath(os.path.normpath(path_to_vm))
+        if not os.path.exists(normalized_path_to_vm):
+            raise FileNotFoundError(
+                f"VMX not found: {normalized_path_to_vm}. "
+                "If you manually deleted vmware_vm_data, remove stale entries in .vmware_vms or rerun to re-install the VM."
+            )
+
         while True:
             try:
                 output = subprocess.check_output(f"vmrun {get_vmrun_type()} list", shell=True, stderr=subprocess.STDOUT)
                 output = output.decode()
                 output = output.splitlines()
-                normalized_path_to_vm = os.path.abspath(os.path.normpath(path_to_vm))
 
                 if any(os.path.abspath(os.path.normpath(line)) == normalized_path_to_vm for line in output):
                     logger.info("VM is running.")
                     break
                 else:
                     logger.info("Starting VM...")
-                    _command = ["vmrun"] + get_vmrun_type(return_list=True) + ["start", path_to_vm]
+                    _command = ["vmrun"] + get_vmrun_type(return_list=True) + ["start", normalized_path_to_vm]
                     if headless:
                         _command.append("nogui")
                     VMwareProvider._execute_command(_command)
@@ -79,10 +88,11 @@ class VMwareProvider(Provider):
 
     def get_ip_address(self, path_to_vm: str) -> str:
         logger.info("Getting VMware VM IP address...")
+        normalized_path_to_vm = os.path.abspath(os.path.normpath(path_to_vm))
         while True:
             try:
                 result = subprocess.run(
-                    ["vmrun"] + get_vmrun_type(return_list=True) + ["getGuestIPAddress", path_to_vm, "-wait"],
+                    ["vmrun"] + get_vmrun_type(return_list=True) + ["getGuestIPAddress", normalized_path_to_vm, "-wait"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,

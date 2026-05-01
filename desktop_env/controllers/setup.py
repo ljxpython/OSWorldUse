@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -13,18 +15,17 @@ from typing import Any, Union, Optional
 from typing import Dict, List
 
 import requests
-from playwright.sync_api import sync_playwright, TimeoutError
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive, GoogleDriveFile, GoogleDriveFileList
-from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from desktop_env.controllers.python import PythonController
 from desktop_env.evaluators.metrics.utils import compare_urls
-from desktop_env.providers.aws.proxy_pool import get_global_proxy_pool, init_proxy_pool, ProxyInfo
 
-import dotenv
-# Load environment variables from .env file
-dotenv.load_dotenv()
+# Optional: load .env if python-dotenv is available.
+try:
+    import dotenv  # type: ignore
+
+    dotenv.load_dotenv()
+except Exception:
+    dotenv = None
 
 
 PROXY_CONFIG_FILE = os.getenv("PROXY_CONFIG_FILE", "evaluation_examples/settings/proxy/dataimpulse.json")  # Default proxy config file
@@ -33,7 +34,39 @@ logger = logging.getLogger("desktopenv.setup")
 
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
-init_proxy_pool(PROXY_CONFIG_FILE)  # initialize the global proxy pool
+_proxy_pool_initialized = False
+
+
+def _require_multipart_encoder():
+    try:
+        from requests_toolbelt.multipart.encoder import MultipartEncoder  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "requests-toolbelt is required for setup steps that upload files to the VM (e.g. download/upload/history)."
+        ) from e
+    return MultipartEncoder
+
+
+def _require_playwright():
+    try:
+        from playwright.sync_api import sync_playwright, TimeoutError  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "playwright is required for Chrome/CDP and website login setup steps. "
+            "Install it and run 'playwright install' on the host."
+        ) from e
+    return sync_playwright, TimeoutError
+
+
+def _require_pydrive():
+    try:
+        from pydrive.auth import GoogleAuth  # type: ignore
+        from pydrive.drive import GoogleDrive  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "pydrive is required for googledrive setup steps on the host environment."
+        ) from e
+    return GoogleAuth, GoogleDrive
 
 MAX_RETRIES = 20
 
@@ -67,6 +100,20 @@ class SetupController:
                 }
         """  
         self.use_proxy = use_proxy
+
+        # Initialize proxy pool only when explicitly requested.
+        if use_proxy:
+            global _proxy_pool_initialized
+            if not _proxy_pool_initialized:
+                try:
+                    from desktop_env.providers.aws.proxy_pool import init_proxy_pool  # type: ignore
+
+                    init_proxy_pool(PROXY_CONFIG_FILE)
+                    _proxy_pool_initialized = True
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Failed to initialize proxy pool using PROXY_CONFIG_FILE={PROXY_CONFIG_FILE!r}"
+                    ) from e
         # make sure connection can be established
         logger.info(f"try to connect {self.http_server}")
         retry = 0
@@ -162,6 +209,7 @@ class SetupController:
                 if not downloaded:
                     raise requests.RequestException(f"Failed to download {url}. No retries left.")
 
+            MultipartEncoder = _require_multipart_encoder()
             form = MultipartEncoder({
                 "file_path": path,
                 "file_data": (os.path.basename(path), open(cache_path, "rb"))
@@ -219,6 +267,7 @@ class SetupController:
 
                     # Open the file inside each attempt to ensure fresh stream position
                     with open(local_path, "rb") as fp:
+                        MultipartEncoder = _require_multipart_encoder()
                         form = MultipartEncoder({
                             "file_path": path,
                             "file_data": (os.path.basename(path), fp)
@@ -528,6 +577,9 @@ class SetupController:
                 return False
             
         # Get proxy from global proxy pool
+        from desktop_env.providers.aws.proxy_pool import get_global_proxy_pool, init_proxy_pool  # type: ignore
+
+        init_proxy_pool(PROXY_CONFIG_FILE)
         proxy_pool = get_global_proxy_pool()
         current_proxy = proxy_pool.get_next_proxy()
         
@@ -588,6 +640,7 @@ class SetupController:
                 time.sleep(5)
 
             browser = None
+            sync_playwright, _TimeoutError = _require_playwright()
             with sync_playwright() as p:
                 try:
                     browser = p.chromium.connect_over_cdp(remote_debugging_url)
@@ -632,6 +685,7 @@ class SetupController:
         port = self.chromium_port  # fixme: this port is hard-coded, need to be changed from config file
 
         remote_debugging_url = f"http://{host}:{port}"
+        sync_playwright, _TimeoutError = _require_playwright()
         with sync_playwright() as p:
             browser = None
             for attempt in range(15):
@@ -685,6 +739,7 @@ class SetupController:
                     path(str): remote url to download file
                     dest(List[str]): the path in the google drive to store the downloaded file
         """
+        GoogleAuth, GoogleDrive = _require_pydrive()
         settings_file = config.get('settings_file', 'evaluation_examples/settings/googledrive/settings.yml')
         gauth = GoogleAuth(settings_file=settings_file)
         drive = GoogleDrive(gauth)
@@ -763,6 +818,7 @@ class SetupController:
         port = self.chromium_port
 
         remote_debugging_url = f"http://{host}:{port}"
+        sync_playwright, TimeoutError = _require_playwright()
         with sync_playwright() as p:
             browser = None
             for attempt in range(15):
@@ -899,6 +955,7 @@ class SetupController:
             else:
                 raise Exception('Unsupported operating system')
 
+            MultipartEncoder = _require_multipart_encoder()
             form = MultipartEncoder({
                 "file_path": chrome_history_path,
                 "file_data": (os.path.basename(chrome_history_path), open(db_path, "rb"))

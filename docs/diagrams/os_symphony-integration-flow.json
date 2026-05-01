@@ -1,0 +1,545 @@
+{
+  "template_type": "agent",
+  "style": 1,
+  "width": 1280,
+  "height": 940,
+  "title": "OS Symphony 在 OSWorld 中的接入链路",
+  "subtitle": "special runner + dual env + OSACI adaptation + auxiliary search/code loops",
+  "containers": [
+    {
+      "x": 36,
+      "y": 96,
+      "width": 1208,
+      "height": 136,
+      "label": "入口与环境",
+      "subtitle": ""
+    },
+    {
+      "x": 36,
+      "y": 264,
+      "width": 1208,
+      "height": 242,
+      "label": "Agent Core 与特例 Rollout",
+      "subtitle": ""
+    },
+    {
+      "x": 36,
+      "y": 538,
+      "width": 1208,
+      "height": 286,
+      "label": "执行与辅助链路",
+      "subtitle": ""
+    }
+  ],
+  "nodes": [
+    {
+      "id": "request",
+      "kind": "speech",
+      "x": 70,
+      "y": 128,
+      "width": 176,
+      "height": 68,
+      "label": "任务 meta / instruction",
+      "fill": "#ffffff",
+      "stroke": "#d1d5db",
+      "flat": true
+    },
+    {
+      "id": "runner",
+      "kind": "double_rect",
+      "x": 300,
+      "y": 118,
+      "width": 264,
+      "height": 88,
+      "label": "run_multienv_os_symphony.py",
+      "sublabel": "建 main env、search env 与 engine params",
+      "type_label": "SPECIAL RUNNER",
+      "fill": "#ffffff",
+      "stroke": "#7c3aed",
+      "flat": true,
+      "tags": [
+        {
+          "label": "scripts/python",
+          "fill": "#faf5ff",
+          "stroke": "#ddd6fe",
+          "text_fill": "#7c3aed"
+        }
+      ]
+    },
+    {
+      "id": "main_env",
+      "kind": "rect",
+      "x": 648,
+      "y": 116,
+      "width": 248,
+      "height": 92,
+      "label": "main env",
+      "sublabel": "desktop_env_os_symphony.DesktopEnv",
+      "type_label": "PRIMARY ENV",
+      "fill": "#ffffff",
+      "stroke": "#2563eb",
+      "flat": true
+    },
+    {
+      "id": "search_env",
+      "kind": "rect",
+      "x": 946,
+      "y": 116,
+      "width": 248,
+      "height": 92,
+      "label": "search env",
+      "sublabel": "延迟 start()，仅 search 时 reset",
+      "type_label": "AUX ENV",
+      "fill": "#ffffff",
+      "stroke": "#f97316",
+      "flat": true
+    },
+    {
+      "id": "rollout",
+      "kind": "double_rect",
+      "x": 92,
+      "y": 334,
+      "width": 324,
+      "height": 92,
+      "label": "run_single_example_os_symphony(...)",
+      "sublabel": "agent.reset -> env.reset -> _get_obs()",
+      "type_label": "SPECIAL ROLLOUT",
+      "fill": "#ffffff",
+      "stroke": "#7c3aed",
+      "flat": true,
+      "tags": [
+        {
+          "label": "lib_run_single.py",
+          "fill": "#faf5ff",
+          "stroke": "#ddd6fe",
+          "text_fill": "#7c3aed"
+        }
+      ]
+    },
+    {
+      "id": "agent",
+      "kind": "hexagon",
+      "x": 470,
+      "y": 320,
+      "width": 170,
+      "height": 116,
+      "label": "OSSymphony",
+      "sublabel": "predict(instruction, obs, is_last_step)",
+      "type_label": "ENTRY AGENT",
+      "fill": "#ffffff",
+      "stroke": "#7c3aed",
+      "stroke_width": 1.8,
+      "flat": true
+    },
+    {
+      "id": "worker",
+      "kind": "double_rect",
+      "x": 712,
+      "y": 322,
+      "width": 248,
+      "height": 108,
+      "label": "Worker / Orchestrator",
+      "sublabel": "plan、reflection、tool choice",
+      "type_label": "PLANNER",
+      "fill": "#ffffff",
+      "stroke": "#7c3aed",
+      "flat": true,
+      "tags": [
+        {
+          "label": "orchestrator + memoryer",
+          "fill": "#faf5ff",
+          "stroke": "#ddd6fe",
+          "text_fill": "#7c3aed"
+        }
+      ]
+    },
+    {
+      "id": "osaci",
+      "kind": "double_rect",
+      "x": 1000,
+      "y": 324,
+      "width": 210,
+      "height": 104,
+      "label": "OSACI",
+      "sublabel": "动作适配层，产出 pyautogui code",
+      "type_label": "ADAPTER",
+      "fill": "#ffffff",
+      "stroke": "#7c3aed",
+      "flat": true,
+      "tags": [
+        {
+          "label": "grounder / coder / searcher",
+          "fill": "#faf5ff",
+          "stroke": "#ddd6fe",
+          "text_fill": "#7c3aed"
+        }
+      ]
+    },
+    {
+      "id": "obs",
+      "kind": "rect",
+      "x": 72,
+      "y": 596,
+      "width": 220,
+      "height": 88,
+      "label": "obs / screenshot",
+      "sublabel": "_get_obs()",
+      "type_label": "OBSERVATION",
+      "fill": "#ffffff",
+      "stroke": "#2563eb",
+      "flat": true
+    },
+    {
+      "id": "execute",
+      "kind": "terminal",
+      "x": 322,
+      "y": 584,
+      "width": 220,
+      "height": 112,
+      "label": "env.step(action)",
+      "fill": "#0f172a",
+      "stroke": "#334155",
+      "header_fill": "#1e293b"
+    },
+    {
+      "id": "memoryer",
+      "kind": "rect",
+      "x": 582,
+      "y": 596,
+      "width": 188,
+      "height": 88,
+      "label": "ReflectionMemoryAgent",
+      "sublabel": "milestone / loop detect",
+      "type_label": "MEMORY",
+      "fill": "#ffffff",
+      "stroke": "#ef4444",
+      "flat": true
+    },
+    {
+      "id": "grounder",
+      "kind": "rect",
+      "x": 808,
+      "y": 596,
+      "width": 180,
+      "height": 88,
+      "label": "GrounderAgent",
+      "sublabel": "描述 -> 坐标",
+      "type_label": "TOOL",
+      "fill": "#ffffff",
+      "stroke": "#f97316",
+      "flat": true
+    },
+    {
+      "id": "ocr",
+      "kind": "rect",
+      "x": 1018,
+      "y": 596,
+      "width": 180,
+      "height": 88,
+      "label": "OCR / Text Span",
+      "sublabel": "phrase -> word coords",
+      "type_label": "TOOL",
+      "fill": "#ffffff",
+      "stroke": "#f97316",
+      "flat": true
+    },
+    {
+      "id": "coder",
+      "kind": "rect",
+      "x": 808,
+      "y": 708,
+      "width": 180,
+      "height": 88,
+      "label": "CoderAgent",
+      "sublabel": "controller.run_python/bash",
+      "type_label": "AUX AGENT",
+      "fill": "#ffffff",
+      "stroke": "#f97316",
+      "flat": true
+    },
+    {
+      "id": "searcher",
+      "kind": "rect",
+      "x": 1018,
+      "y": 708,
+      "width": 180,
+      "height": 88,
+      "label": "SearcherAgent",
+      "sublabel": "独立 Chrome 教程搜索",
+      "type_label": "AUX AGENT",
+      "fill": "#ffffff",
+      "stroke": "#f97316",
+      "flat": true
+    }
+  ],
+  "arrows": [
+    {
+      "source": "request",
+      "target": "runner",
+      "source_port": "right",
+      "target_port": "left",
+      "flow": "read"
+    },
+    {
+      "source": "runner",
+      "target": "main_env",
+      "source_port": "right",
+      "target_port": "left",
+      "flow": "control",
+      "label": "create + start"
+    },
+    {
+      "source": "runner",
+      "target": "search_env",
+      "source_port": "right",
+      "target_port": "left",
+      "flow": "async",
+      "route_points": [
+        [564, 206],
+        [920, 206],
+        [920, 162],
+        [946, 162]
+      ]
+    },
+    {
+      "source": "runner",
+      "target": "rollout",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "control",
+      "label": "dispatch task",
+      "corridor_x": [430]
+    },
+    {
+      "source": "main_env",
+      "target": "rollout",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "read",
+      "label": "env",
+      "route_points": [
+        [772, 208],
+        [772, 280],
+        [254, 280],
+        [254, 334]
+      ]
+    },
+    {
+      "source": "rollout",
+      "target": "obs",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "read",
+      "corridor_x": [180]
+    },
+    {
+      "source": "obs",
+      "target": "agent",
+      "source_port": "top",
+      "target_port": "left",
+      "flow": "read",
+      "label": "obs",
+      "route_points": [
+        [182, 596],
+        [182, 492],
+        [470, 492],
+        [470, 378]
+      ]
+    },
+    {
+      "source": "rollout",
+      "target": "agent",
+      "source_port": "right",
+      "target_port": "left",
+      "flow": "control",
+      "label": "predict"
+    },
+    {
+      "source": "agent",
+      "target": "worker",
+      "source_port": "right",
+      "target_port": "left",
+      "flow": "control",
+      "label": "next action"
+    },
+    {
+      "source": "worker",
+      "target": "osaci",
+      "source_port": "right",
+      "target_port": "left",
+      "flow": "control",
+      "label": "plan code"
+    },
+    {
+      "source": "osaci",
+      "target": "execute",
+      "source_port": "left",
+      "target_port": "right",
+      "flow": "control",
+      "label": "exec_code",
+      "route_points": [
+        [1000, 376],
+        [914, 376],
+        [914, 640],
+        [542, 640]
+      ]
+    },
+    {
+      "source": "execute",
+      "target": "obs",
+      "source_port": "left",
+      "target_port": "top",
+      "flow": "feedback",
+      "label": "new obs",
+      "route_points": [
+        [322, 640],
+        [260, 640],
+        [260, 748],
+        [182, 748],
+        [182, 596]
+      ]
+    },
+    {
+      "source": "worker",
+      "target": "memoryer",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "async",
+      "label": "reflection",
+      "dashed": true,
+      "route_points": [
+        [836, 430],
+        [836, 522],
+        [676, 522],
+        [676, 596]
+      ]
+    },
+    {
+      "source": "memoryer",
+      "target": "worker",
+      "source_port": "top",
+      "target_port": "bottom",
+      "flow": "feedback",
+      "label": "reflection back",
+      "dashed": true,
+      "route_points": [
+        [676, 596],
+        [676, 544],
+        [760, 544],
+        [836, 430]
+      ]
+    },
+    {
+      "source": "osaci",
+      "target": "grounder",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "async",
+      "label": "click/type/scroll",
+      "dashed": true,
+      "corridor_x": [900]
+    },
+    {
+      "source": "osaci",
+      "target": "ocr",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "async",
+      "label": "text span",
+      "dashed": true,
+      "corridor_x": [1108]
+    },
+    {
+      "source": "osaci",
+      "target": "coder",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "async",
+      "label": "call_code_agent",
+      "dashed": true,
+      "route_points": [
+        [1088, 428],
+        [1088, 508],
+        [898, 508],
+        [898, 708]
+      ]
+    },
+    {
+      "source": "coder",
+      "target": "worker",
+      "source_port": "top",
+      "target_port": "bottom",
+      "flow": "feedback",
+      "label": "code result",
+      "dashed": true,
+      "route_points": [
+        [898, 708],
+        [898, 652],
+        [760, 652],
+        [760, 430]
+      ]
+    },
+    {
+      "source": "osaci",
+      "target": "searcher",
+      "source_port": "bottom",
+      "target_port": "top",
+      "flow": "async",
+      "label": "call_search_agent",
+      "dashed": true,
+      "route_points": [
+        [1112, 428],
+        [1112, 508],
+        [1108, 508],
+        [1108, 708]
+      ]
+    },
+    {
+      "source": "searcher",
+      "target": "search_env",
+      "source_port": "top",
+      "target_port": "bottom",
+      "flow": "async",
+      "label": "start/reset + search",
+      "dashed": true
+    },
+    {
+      "source": "searcher",
+      "target": "worker",
+      "source_port": "left",
+      "target_port": "bottom",
+      "flow": "feedback",
+      "label": "tutorial",
+      "dashed": true,
+      "route_points": [
+        [1018, 752],
+        [966, 752],
+        [966, 470],
+        [900, 430]
+      ]
+    }
+  ],
+  "legend": [
+    {
+      "flow": "control",
+      "label": "主执行链路"
+    },
+    {
+      "flow": "read",
+      "label": "观测 / 句柄输入"
+    },
+    {
+      "flow": "async",
+      "label": "辅助工具或子 agent 调用"
+    },
+    {
+      "flow": "feedback",
+      "label": "结果 / 教程 / 反思回灌"
+    }
+  ],
+  "legend_position": "bottom-right",
+  "legend_y": 852,
+  "legend_box": true,
+  "legend_box_fill": "#ffffff",
+  "footer": "对应 docs/code-reading/17 的判断：更接近“特例 runner”，但 rollout 仍由 runner 直接 env.step(action)。"
+}

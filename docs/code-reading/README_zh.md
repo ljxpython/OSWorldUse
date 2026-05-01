@@ -29,6 +29,7 @@
 - [22 OpenAICUAAgent 最小实践与可运行 Demo](./22-openaicua-demo-practice_zh.md)
 - [23 OpenAICUAAgent 推理主循环解读](./23-openaicua-predict-loop_zh.md)
 - [24 OpenAICUAAgent 动手实践](./24-openaicua-hands-on-practice_zh.md)
+- [25 OS Symphony 接入链路与代码走读](./25-os-symphony-walkthrough_zh.md)
 
 ## 先建立整体认识
 

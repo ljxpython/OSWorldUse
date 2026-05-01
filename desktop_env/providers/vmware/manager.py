@@ -378,8 +378,10 @@ class VMwareVMManager(VMManager):
                 for line in lines:
                     vm_path, pid_str = line.strip().split('|')
                     if not os.path.exists(vm_path):
-                        logger.info(f"VM {vm_path} not found, releasing it.")
-                        new_lines.append(f'{vm_path}|free\n')
+                        # VM files are missing on disk (e.g., manually deleted).
+                        # Do NOT keep a dangling registry entry, otherwise the allocator
+                        # will pick a non-existent VM path and vmrun will fail repeatedly.
+                        logger.info(f"VM {vm_path} not found on disk, removing it from registry.")
                         continue
 
                     vm_paths.append(vm_path)
