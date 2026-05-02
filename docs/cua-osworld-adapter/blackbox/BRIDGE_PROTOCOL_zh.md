@@ -160,6 +160,7 @@ env 负责：
 - `key_press`
 - `hotkey`
 - `wait`
+- `app_open`
 - `get_screen_size`
 - `done`
 
@@ -171,7 +172,6 @@ env 负责：
 - `record_info`
 - `read_record`
 - `wait_for_user`
-- `app_open`
 - `osascript_exec`
 - `get_cursor_position`
 

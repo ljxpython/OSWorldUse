@@ -22,6 +22,7 @@ SUPPORTED_TOOLS = {
     "key_press",
     "hotkey",
     "wait",
+    "app_open",
     "get_screen_size",
     "done",
 }
@@ -33,7 +34,6 @@ DISABLED_TOOLS = {
     "record_info",
     "read_record",
     "wait_for_user",
-    "app_open",
     "osascript_exec",
     "get_cursor_position",
 }
@@ -102,4 +102,3 @@ def error(code: str, message: str, details: dict[str, Any] | None = None) -> dic
             },
         },
     }
-

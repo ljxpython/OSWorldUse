@@ -199,6 +199,8 @@ class CuaBridgeExecutor:
             )
             if req.tool == "clipboard_type":
                 command = self._clipboard_command(req.args)
+            elif req.tool == "app_open":
+                command = self._app_open_command(req.args)
             else:
                 command = translate_tool_to_pyautogui(req.tool, mapped_args)
         except ToolTranslationError as exc:
@@ -349,4 +351,106 @@ class CuaBridgeExecutor:
             "        pyautogui.hotkey('ctrl', 'v')\n"
             "    except Exception:\n"
             "        pyautogui.write(_cua_text)\n"
+        )
+
+    @staticmethod
+    def _app_open_command(args: dict[str, Any]) -> str:
+        app = str(args.get("app") or args.get("bundle_id") or "").strip()
+        if not app:
+            raise ToolTranslationError("app_open needs app or bundle_id")
+        try:
+            wait_ms = max(0, int(float(args.get("wait_ms", 1500) or 0)))
+        except (TypeError, ValueError) as exc:
+            raise ToolTranslationError("wait_ms must be a number") from exc
+        app_repr = repr(app)
+        wait_seconds = wait_ms / 1000.0
+        return (
+            "import json, os, shutil, subprocess, time\n"
+            f"_cua_app = {app_repr}\n"
+            f"_cua_wait_seconds = {wait_seconds!r}\n"
+            "_cua_errors = []\n"
+            "_cua_search_paths = [\n"
+            "    '/usr/share/applications',\n"
+            "    '/usr/local/share/applications',\n"
+            "    os.path.expanduser('~/.local/share/applications'),\n"
+            "    os.path.expanduser('~/.local/share/flatpak/exports/share/applications'),\n"
+            "    '/var/lib/flatpak/exports/share/applications',\n"
+            "]\n"
+            "\n"
+            "def _cua_sleep():\n"
+            "    if _cua_wait_seconds > 0:\n"
+            "        time.sleep(_cua_wait_seconds)\n"
+            "\n"
+            "def _cua_success(strategy, **extra):\n"
+            "    _cua_sleep()\n"
+            "    payload = {'event': 'app_open', 'os': 'linux', 'strategy': strategy, **extra}\n"
+            "    print(json.dumps(payload, ensure_ascii=False))\n"
+            "\n"
+            "def _cua_find_desktop_file(name):\n"
+            "    candidates = [name]\n"
+            "    if not name.endswith('.desktop'):\n"
+            "        candidates.append(f'{name}.desktop')\n"
+            "    lowered = name.lower()\n"
+            "    for directory in _cua_search_paths:\n"
+            "        if not os.path.isdir(directory):\n"
+            "            continue\n"
+            "        for candidate in candidates:\n"
+            "            path = os.path.join(directory, candidate)\n"
+            "            if os.path.exists(path):\n"
+            "                return path\n"
+            "        try:\n"
+            "            for filename in os.listdir(directory):\n"
+            "                if not filename.endswith('.desktop'):\n"
+            "                    continue\n"
+            "                path = os.path.join(directory, filename)\n"
+            "                try:\n"
+            "                    with open(path, 'r', encoding='utf-8', errors='ignore') as file:\n"
+            "                        content = file.read().lower()\n"
+            "                except OSError:\n"
+            "                    continue\n"
+            "                if lowered in filename.lower() or f'name={lowered}' in content:\n"
+            "                    return path\n"
+            "        except OSError:\n"
+            "            continue\n"
+            "    return None\n"
+            "\n"
+            "try:\n"
+            "    result = subprocess.run(['gtk-launch', _cua_app], text=True, capture_output=True, timeout=5)\n"
+            "    if result.returncode == 0:\n"
+            "        _cua_success('gtk-launch', app=_cua_app)\n"
+            "        raise SystemExit(0)\n"
+            "    _cua_errors.append(f\"gtk-launch: {(result.stderr or result.stdout or 'failed')[:200]}\")\n"
+            "except Exception as exc:\n"
+            "    _cua_errors.append(f'gtk-launch: {str(exc)[:100]}')\n"
+            "\n"
+            "try:\n"
+            "    desktop_file = _cua_find_desktop_file(_cua_app)\n"
+            "    if desktop_file:\n"
+            "        result = subprocess.run(['gio', 'launch', desktop_file], text=True, capture_output=True, timeout=5)\n"
+            "        if result.returncode == 0:\n"
+            "            _cua_success('gio-launch', desktop_file=desktop_file)\n"
+            "            raise SystemExit(0)\n"
+            "        _cua_errors.append(f\"gio launch: {(result.stderr or result.stdout or 'failed')[:200]}\")\n"
+            "except Exception as exc:\n"
+            "    _cua_errors.append(f'gio: {str(exc)[:100]}')\n"
+            "\n"
+            "try:\n"
+            "    result = subprocess.run(['xdg-open', _cua_app], text=True, capture_output=True, timeout=6)\n"
+            "    if result.returncode == 0:\n"
+            "        _cua_success('xdg-open', app=_cua_app)\n"
+            "        raise SystemExit(0)\n"
+            "    _cua_errors.append(f\"xdg-open: {(result.stderr or result.stdout or 'failed')[:200]}\")\n"
+            "except Exception as exc:\n"
+            "    _cua_errors.append(f'xdg-open: {str(exc)[:100]}')\n"
+            "\n"
+            "try:\n"
+            "    executable = shutil.which(_cua_app)\n"
+            "    if executable:\n"
+            "        subprocess.Popen([executable], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)\n"
+            "        _cua_success('exec', app=_cua_app, executable=executable)\n"
+            "        raise SystemExit(0)\n"
+            "except Exception as exc:\n"
+            "    _cua_errors.append(f'exec: {str(exc)[:100]}')\n"
+            "\n"
+            "raise RuntimeError('Linux app_open failed: ' + ' | '.join(_cua_errors))\n"
         )

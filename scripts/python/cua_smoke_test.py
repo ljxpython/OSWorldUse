@@ -118,6 +118,14 @@ def check_tool_translator() -> None:
     )
     assert mapped_click == {"x": 960, "y": 540}
 
+    mapped_point_bbox = map_args_to_screen(
+        "mouse_click",
+        {"bbox": [500, 500]},
+        screen_size=(1920, 1080),
+        normalized_input=True,
+    )
+    assert mapped_point_bbox == {"x": 960, "y": 540}
+
     click = translate_tool_to_pyautogui("mouse_click", mapped_click)
     assert click == "pyautogui.moveTo(960, 540); pyautogui.click(button='left')"
 
@@ -178,6 +186,16 @@ def check_bridge_actions(result_dir: str) -> None:
     _assert_ok(_request(executor, "done-001", "done", {"reason": "smoke"}))
     assert executor.done is True
     assert executor.done_reason == "smoke"
+
+
+def check_app_open_linux_strategy(result_dir: str) -> None:
+    env, executor = _make_executor(result_dir)
+    payload = _assert_ok(_request(executor, "app-open-001", "app_open", {"app": "google-chrome", "wait_ms": 0}))
+    assert payload["tool"] == "app_open"
+    assert "gtk-launch" in env.controller.commands[-1]
+    assert "gio" in env.controller.commands[-1]
+    assert "xdg-open" in env.controller.commands[-1]
+    assert "shutil.which" in env.controller.commands[-1]
 
 
 def check_openclaw_shim(result_dir: str) -> None:
@@ -522,6 +540,7 @@ def main() -> int:
         run_check("SMK-012", "summary totals and metadata", lambda: check_summary_totals(result_dir)),
         run_check("SMK-013", "summary domain and csv outputs", lambda: check_summary_domain_and_csv(result_dir)),
         run_check("SMK-014", "summary rebuild cli and failure rollup", lambda: check_summary_rebuild_cli(result_dir)),
+        run_check("SMK-015", "app_open linux strategy", lambda: check_app_open_linux_strategy(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)

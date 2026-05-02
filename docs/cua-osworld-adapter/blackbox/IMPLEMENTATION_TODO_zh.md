@@ -175,7 +175,7 @@
 
 以下内容不在第一阶段：
 
-- [ ] `app_open`
+- [x] `app_open`
 - [ ] `get_cursor_position`
 - [ ] `wait_for_user`
 - [ ] `shell_exec`
@@ -286,7 +286,7 @@
 - 2026-05-02 执行 `evaluation_examples/test_cua_regression.json`，5 个任务全部跑到 `env.evaluate()`。
 - 结果目录：`results_cua_regression/pyautogui/screenshot/cua-blackbox-regression/`
 - summary：`total=5`，`scored=5`，`failed=0`，`pending=0`，`average_score=0.5995482928125415`。
-- 发现 1 条非阻断 bridge failure metadata：`bridge_unsupported_tool`，原因是 CUA 调用了首阶段禁用的 `app_open`。
+- 发现 1 条非阻断 bridge failure metadata：`bridge_unsupported_tool`，原因是 CUA 调用了当时尚未支持的 `app_open`；后续已按 CUA Linux 策略补齐 `app_open`。
 
 ### 12.5 P5：并行与长期稳定性
 

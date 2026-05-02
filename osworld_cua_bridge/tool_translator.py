@@ -33,8 +33,10 @@ def _bbox_center(args: dict[str, Any], key: str = "bbox", fmt_key: str = "bbox_f
     bbox = args.get(key)
     if bbox is None:
         return None
-    if not isinstance(bbox, list | tuple) or len(bbox) != 4:
-        raise ToolTranslationError(f"{key} must be a four-number array")
+    if not isinstance(bbox, list | tuple) or len(bbox) not in (2, 4):
+        raise ToolTranslationError(f"{key} must be a two-number point or four-number array")
+    if len(bbox) == 2:
+        return _as_int(bbox[0], key), _as_int(bbox[1], key)
     a, b, c, d = [_as_float(v, key) for v in bbox]
     bbox_format = str(args.get(fmt_key) or "xyxy").lower()
     if bbox_format == "xywh":
