@@ -83,6 +83,7 @@ Web 展示是只读模式，只暴露 `result_root` 内的 artifacts。
 
 - [方案总设计与实施清单](./PLAN_B_CUA_BLACKBOX_OSWORLD_INTEGRATION_zh.md)
 - [技术架构图](./TECHNICAL_ARCHITECTURE_zh.md)
+- [开发者指南：入口、调用链与扩展点](./DEVELOPER_GUIDE_zh.md)
 - [单环境阶段验收结论](./SINGLE_ENV_ACCEPTANCE_CONCLUSION_zh.md)
 - [Bridge 协议设计](./BRIDGE_PROTOCOL_zh.md)
 - [实现任务清单](./IMPLEMENTATION_TODO_zh.md)

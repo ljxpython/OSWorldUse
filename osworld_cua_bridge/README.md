@@ -2,6 +2,12 @@
 
 `osworld_cua_bridge` 是 OSWorld 侧的 CUA blackbox 接入层。它把 CUA 当成外部运行时或二进制进程使用，不要求修改 CUA 源码。
 
+如果需要理解完整评测入口、调用链、时序和扩展点，先读：
+
+```text
+docs/cua-osworld-adapter/blackbox/DEVELOPER_GUIDE_zh.md
+```
+
 ## 1. 目录职责
 
 - `launcher.py`：启动 CUA 进程，拼装 `cua run` 参数，处理超时和退出码。

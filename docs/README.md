@@ -9,6 +9,8 @@
 - `cua-osworld-adapter/`
   这是 CUA 接入 OSWorld 的主线文档目录。当前支持的实现路线已经收敛到 blackbox bridge。
   `blackbox/` 补充文档现在已经并入这个目录下面。
+- `evaluation-case-analysis/`
+  面向 `evaluation_examples/` 的评测 case 汇总，按平台和应用域列出每个 case 在做什么。
 
 ## 当前主线
 
@@ -46,3 +48,9 @@
 - [CUA 方案 A 实现路线图](./cua-osworld-adapter/IMPLEMENTATION_ROADMAP_zh.md)
 - [CUA 方案 A 实现任务拆分](./cua-osworld-adapter/IMPLEMENTATION_TASKS_zh.md)
 - [blackbox bridge 实现补充文档](./cua-osworld-adapter/blackbox/README.md)
+
+## Evaluation Case Analysis
+
+- [评测 case 汇总索引](./evaluation-case-analysis/README.md)
+- [评测标准体系与准确性保证](./evaluation-case-analysis/evaluation-methodology.md)
+- [逐 case 详细分析](./evaluation-case-analysis/details/README.md)
