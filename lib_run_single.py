@@ -3,10 +3,22 @@ import json
 import logging
 import os
 import time
+from dataclasses import asdict, is_dataclass
 from multiprocessing import current_process
 
-from wrapt_timeout_decorator import *
+try:
+    from wrapt_timeout_decorator import *  # noqa: F403,F401
+except ImportError:
+    pass
 from lib_results_logger import log_task_completion
+from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
+
+
+# These defaults are kept only for historical metadata compatibility with the
+# deprecated mm_agents/cua adapter route. The supported runtime path passes its
+# own explicit values through args.
+DEFAULT_ADAPTER_VERSION = "v1"
+DEFAULT_EVAL_PROFILE = "ubuntu-screenshot-pyautogui-v1"
 
 logger = logging.getLogger("desktopenv.experiment")
 
@@ -79,6 +91,179 @@ def setup_logger(example, example_result_dir):
     runtime_logger.setLevel(logging.DEBUG)
     runtime_logger.addHandler(logging.FileHandler(os.path.join(example_result_dir, "runtime.log")))
     return runtime_logger
+
+
+def _write_run_metadata(example_result_dir, args, metadata: dict) -> None:
+    payload = {
+        "osworld_version": os.getenv("OSWORLD_VERSION", os.getenv("GIT_COMMIT", "unknown")),
+        "adapter_version": metadata.get("adapter_version", DEFAULT_ADAPTER_VERSION),
+        "cua_version": metadata.get("cua_version", getattr(args, "model", "unknown")),
+        "bridge_protocol_version": metadata.get("bridge_protocol_version", BRIDGE_PROTOCOL_VERSION),
+        "eval_profile": metadata.get("eval_profile", DEFAULT_EVAL_PROFILE),
+        "task_set": getattr(args, "test_all_meta_path", ""),
+        "screen_size": metadata.get("screen_size"),
+        "model": getattr(args, "model", "unknown"),
+        "action_space": getattr(args, "action_space", "pyautogui"),
+        "observation_type": getattr(args, "observation_type", "screenshot"),
+        "timestamp": datetime.datetime.now().isoformat(),
+    }
+    payload.update(metadata)
+    with open(os.path.join(example_result_dir, "run_meta.json"), "w", encoding="utf-8") as file:
+        json.dump(payload, file, indent=2, ensure_ascii=False)
+
+
+def run_single_example_cua_blackbox(env, example, max_steps, instruction, args, example_result_dir, scores):
+    from osworld_cua_bridge.launcher import run_cua_blackbox
+
+    runtime_logger = setup_logger(example, example_result_dir)
+    env.reset(task_config=example)
+    metadata = {
+        "adapter_version": getattr(args, "adapter_version", "blackbox-v1"),
+        "cua_version": getattr(args, "cua_version", None) or getattr(args, "model", "cua-blackbox"),
+        "bridge_protocol_version": getattr(args, "bridge_protocol_version", BRIDGE_PROTOCOL_VERSION),
+        "eval_profile": getattr(args, "eval_profile", "ubuntu-cua-blackbox-bridge-v1"),
+        "screen_size": [getattr(args, "screen_width", 1920), getattr(args, "screen_height", 1080)],
+        "cua_config_path": getattr(args, "cua_config_path", ""),
+        "cua_bin": getattr(args, "cua_bin", None),
+    }
+    _write_run_metadata(example_result_dir, args, metadata)
+    time.sleep(getattr(args, "env_ready_sleep", 60))
+
+    env.controller.start_recording()
+    recording_started = True
+    cua_result = None
+    try:
+        cua_result = run_cua_blackbox(
+            env=env,
+            example=example,
+            instruction=instruction,
+            args=args,
+            example_result_dir=example_result_dir,
+        )
+
+        with open(os.path.join(example_result_dir, "traj.jsonl"), "a", encoding="utf-8") as file:
+            file.write(json.dumps({
+                "mode": "cua_blackbox",
+                "run_id": cua_result.run_id,
+                "node_id": cua_result.node_id,
+                "command": cua_result.command,
+                "exit_code": cua_result.exit_code,
+                "duration_seconds": cua_result.duration_seconds,
+            }, ensure_ascii=False))
+            file.write("\n")
+
+        settle_seconds = getattr(args, "settle_sleep", 20)
+        if settle_seconds > 0:
+            time.sleep(settle_seconds)
+        result = env.evaluate()
+        logger.info("Result: %.2f", result)
+        scores.append(result)
+        with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{result}\n")
+        log_task_completion(example, result, example_result_dir, args)
+    finally:
+        if recording_started:
+            try:
+                env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+            except Exception as exc:
+                runtime_logger.exception("Failed to end recording: %s", exc)
+
+
+def run_single_example_cua(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
+    runtime_logger = setup_logger(example, example_result_dir)
+    env.reset(task_config=example)
+    try:
+        agent.reset(runtime_logger, vm_ip=env.vm_ip)
+    except Exception:
+        agent.reset(runtime_logger)
+
+    metadata = getattr(agent, "metadata", {})
+    if is_dataclass(metadata):
+        metadata = asdict(metadata)
+    elif hasattr(metadata, "__dict__"):
+        metadata = dict(metadata.__dict__)
+    elif not isinstance(metadata, dict):
+        metadata = {}
+    _write_run_metadata(example_result_dir, args, metadata)
+
+    time.sleep(getattr(args, "env_ready_sleep", 60))
+    obs = env._get_obs()
+    done = False
+    step_idx = 0
+    env.controller.start_recording()
+    try:
+        while not done and step_idx < max_steps:
+            response, actions, info_dict = agent.predict(instruction, obs, step_idx=step_idx)
+            logger.info("Agent response: %s", _truncate_text(response))
+            logger.info("Agent actions: %s", actions)
+
+            if not actions:
+                logger.warning("Agent returned empty actions, stopping episode.")
+                break
+
+            for action in actions:
+                action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S%f")
+                logger.info("Step %d: %s", step_idx + 1, action)
+                obs, reward, done, info = env.step(action, args.sleep_after_execution)
+
+                controller_result = info.get("controller_result", {}) if isinstance(info, dict) else {}
+                if controller_result:
+                    logger.info("Controller returncode: %s", controller_result.get("returncode"))
+                    controller_error = (controller_result.get("error") or "").strip()
+                    controller_output = (controller_result.get("output") or "").strip()
+                    if controller_error:
+                        logger.warning("Controller stderr: %s", controller_error)
+                    elif controller_output:
+                        logger.info("Controller stdout: %s", controller_output)
+
+                logger.info("Reward: %.2f", reward)
+                logger.info("Done: %s", done)
+                with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"), "wb") as file:
+                    file.write(obs["screenshot"])
+
+                traj_entry = {
+                    "step_num": step_idx + 1,
+                    "action_timestamp": action_timestamp,
+                    "response": response,
+                    "action": action,
+                    "reward": reward,
+                    "done": done,
+                    "info": info,
+                    "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png",
+                }
+                if info_dict:
+                    traj_entry["agent_info"] = info_dict
+
+                with open(os.path.join(example_result_dir, "traj.jsonl"), "a", encoding="utf-8") as file:
+                    file.write(json.dumps(traj_entry, ensure_ascii=False))
+                    file.write("\n")
+
+                if done:
+                    logger.info("The episode is done.")
+                    break
+            step_idx += 1
+
+        time.sleep(getattr(args, "settle_sleep", 20))
+        result = env.evaluate()
+        logger.info("Result: %.2f", result)
+        scores.append(result)
+        with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as file:
+            file.write(f"{result}\n")
+        log_task_completion(example, result, example_result_dir, args)
+    finally:
+        try:
+            env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+        except Exception:
+            logger.exception("Failed to end recording for CUA run")
+
+
+def _truncate_text(text: str, limit: int = 400) -> str:
+    if text is None:
+        return ""
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "..."
 
 def run_single_example_human(env, example, max_steps, instruction, args, example_result_dir, scores):
     runtime_logger = setup_logger(example, example_result_dir)
@@ -596,14 +781,12 @@ def run_single_example_uipath(agent, env, example, max_steps, instruction, args,
         f.write(f"{result}\n")
     env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
 
-
-from mm_agents.os_symphony.utils.common_utils import draw_coordinates
-from mm_agents.os_symphony.utils.process_context import set_current_result_dir
-
-
 logger = logging.getLogger("desktopenv.experiment")
 
 def run_single_example_os_symphony(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
+    from mm_agents.os_symphony.utils.common_utils import draw_coordinates
+    from mm_agents.os_symphony.utils.process_context import set_current_result_dir
+
     set_current_result_dir(example_result_dir)
     
     agent.reset(result_dir=example_result_dir)

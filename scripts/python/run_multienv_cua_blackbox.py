@@ -1,0 +1,326 @@
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import logging
+import os
+import signal
+import sys
+import time
+from multiprocessing import Manager, Process, current_process
+from typing import List
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+
+import lib_run_single
+from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
+
+
+active_environments = []
+processes = []
+is_terminating = False
+
+if os.path.exists(".env"):
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+
+def config() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run OSWorld evaluation with blackbox CUA runtime")
+
+    parser.add_argument("--path_to_vm", type=str, default=None)
+    parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--action_space", type=str, default="pyautogui")
+    parser.add_argument(
+        "--observation_type",
+        choices=["screenshot"],
+        default="screenshot",
+        help="CUA blackbox phase 1 only supports screenshot observation",
+    )
+    parser.add_argument("--sleep_after_execution", type=float, default=0.0)
+    parser.add_argument("--max_steps", type=int, default=30)
+    parser.add_argument("--env_ready_sleep", type=float, default=60)
+    parser.add_argument("--settle_sleep", type=float, default=20)
+
+    parser.add_argument("--test_config_base_dir", type=str, default="evaluation_examples")
+    parser.add_argument("--domain", type=str, default="all")
+    parser.add_argument("--example_id", type=str, default=None, help="Run a single example id within the selected domain or all domains")
+    parser.add_argument("--test_all_meta_path", type=str, default="evaluation_examples/test_all.json")
+
+    parser.add_argument("--model", type=str, default="cua-blackbox")
+    parser.add_argument("--result_dir", type=str, default="./results_cua_blackbox")
+    parser.add_argument("--num_envs", type=int, default=1)
+    parser.add_argument(
+        "--log_level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
+    )
+
+    parser.add_argument("--region", type=str, default="us-east-1")
+    parser.add_argument(
+        "--provider_name",
+        type=str,
+        default="aws",
+        choices=["aws", "virtualbox", "vmware", "docker", "azure"],
+    )
+    parser.add_argument("--client_password", type=str, default="")
+    parser.add_argument("--screen_width", type=int, default=1920)
+    parser.add_argument("--screen_height", type=int, default=1080)
+    parser.add_argument("--adapter_version", type=str, default="blackbox-v1")
+    parser.add_argument("--bridge_protocol_version", type=str, default="bridge-v1")
+    parser.add_argument("--eval_profile", type=str, default="ubuntu-cua-blackbox-bridge-v1")
+    parser.add_argument("--cua_version", type=str, default=None)
+
+    parser.add_argument("--cua_bin", type=str, default=None, help="Path to cua binary; defaults to PATH cua or CUA dist CLI")
+    parser.add_argument("--cua_repo_root", type=str, default=None)
+    parser.add_argument("--cua_config_path", type=str, default=DEFAULT_CUA_CONFIG_PATH)
+    parser.add_argument("--cua_runs_dir", type=str, default=None)
+    parser.add_argument("--cua_node_id", type=str, default=None)
+    parser.add_argument("--cua_max_duration_ms", type=int, default=0)
+    parser.add_argument("--cua_max_step_duration_ms", type=int, default=0)
+    parser.add_argument("--openclaw_bin", type=str, default=None)
+    parser.add_argument("--cua_extra_args", nargs=argparse.REMAINDER, default=None)
+
+    return parser.parse_args()
+
+
+args = config()
+logger = logging.getLogger()
+logger.setLevel(getattr(logging, args.log_level.upper()))
+os.makedirs("logs", exist_ok=True)
+datetime_str = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
+
+file_handler = logging.FileHandler(os.path.join("logs", f"normal-{datetime_str}.log"), encoding="utf-8")
+debug_handler = logging.FileHandler(os.path.join("logs", f"debug-{datetime_str}.log"), encoding="utf-8")
+stdout_handler = logging.StreamHandler(sys.stdout)
+file_handler.setLevel(logging.INFO)
+debug_handler.setLevel(logging.DEBUG)
+stdout_handler.setLevel(getattr(logging, args.log_level.upper()))
+formatter = logging.Formatter(
+    fmt="\x1b[1;33m[%(asctime)s \x1b[31m%(levelname)s \x1b[32m%(module)s/%(lineno)d-%(processName)s\x1b[1;33m] \x1b[0m%(message)s"
+)
+file_handler.setFormatter(formatter)
+debug_handler.setFormatter(formatter)
+stdout_handler.setFormatter(formatter)
+stdout_handler.addFilter(logging.Filter("desktopenv"))
+logger.addHandler(file_handler)
+logger.addHandler(debug_handler)
+logger.addHandler(stdout_handler)
+logger = logging.getLogger("desktopenv.experiment")
+
+
+def distribute_tasks(test_all_meta: dict) -> List[tuple]:
+    all_tasks = []
+    for domain, examples in test_all_meta.items():
+        for example_id in examples:
+            all_tasks.append((domain, example_id))
+    return all_tasks
+
+
+def _snapshot_name(args: argparse.Namespace):
+    if args.provider_name == "aws":
+        from desktop_env.providers.aws.manager import IMAGE_ID_MAP
+
+        screen_size = (args.screen_width, args.screen_height)
+        return IMAGE_ID_MAP[args.region].get(screen_size, IMAGE_ID_MAP[args.region][(1920, 1080)])
+    return "init_state"
+
+
+def run_env_tasks(task_queue, args: argparse.Namespace, shared_scores: list):
+    from desktop_env.desktop_env import DesktopEnv
+
+    active_environments = []
+    env = None
+    try:
+        screen_size = (args.screen_width, args.screen_height)
+        env = DesktopEnv(
+            path_to_vm=args.path_to_vm,
+            action_space=args.action_space,
+            provider_name=args.provider_name,
+            region=args.region,
+            snapshot_name=_snapshot_name(args),
+            screen_size=screen_size,
+            headless=args.headless,
+            os_type="Ubuntu",
+            require_a11y_tree=False,
+            enable_proxy=True,
+            client_password=args.client_password,
+        )
+        active_environments.append(env)
+
+        logger.info("Process %s started.", current_process().name)
+        while True:
+            try:
+                domain, example_id = task_queue.get(timeout=5)
+            except Exception:
+                break
+
+            try:
+                config_file = os.path.join(args.test_config_base_dir, f"examples/{domain}/{example_id}.json")
+                with open(config_file, "r", encoding="utf-8") as file:
+                    example = json.load(file)
+                logger.info("[%s][Domain]: %s", current_process().name, domain)
+                logger.info("[%s][Example ID]: %s", current_process().name, example_id)
+                logger.info("[%s][Instruction]: %s", current_process().name, example["instruction"])
+
+                example_result_dir = os.path.join(
+                    args.result_dir,
+                    args.action_space,
+                    args.observation_type,
+                    args.model,
+                    domain,
+                    example_id,
+                )
+                os.makedirs(example_result_dir, exist_ok=True)
+
+                try:
+                    lib_run_single.run_single_example_cua_blackbox(
+                        env,
+                        example,
+                        args.max_steps,
+                        example["instruction"],
+                        args,
+                        example_result_dir,
+                        shared_scores,
+                    )
+                except Exception as exc:
+                    import traceback
+
+                    logger.error("Exception in %s %s/%s: %s", current_process().name, domain, example_id, exc)
+                    logger.error(traceback.format_exc())
+                    try:
+                        env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+                    except Exception as rec_exc:
+                        logger.error("Failed to end recording: %s", rec_exc)
+                    with open(os.path.join(example_result_dir, "traj.jsonl"), "a", encoding="utf-8") as file:
+                        file.write(json.dumps({"Error": f"{domain}/{example_id} - {exc}"}, ensure_ascii=False))
+                        file.write("\n")
+            except Exception as exc:
+                logger.error("Task-level error in %s: %s", current_process().name, exc, exc_info=True)
+    finally:
+        logger.info("%s cleaning up environment...", current_process().name)
+        if env is not None:
+            try:
+                env.close()
+            except Exception as exc:
+                logger.error("%s error during environment cleanup: %s", current_process().name, exc)
+
+
+def signal_handler(signum, frame):
+    global is_terminating
+    if is_terminating:
+        return
+    is_terminating = True
+    logger.info("Received signal %s. Gracefully shutting down...", signum)
+    for env in active_environments:
+        try:
+            env.close()
+        except Exception:
+            logger.exception("Error closing environment")
+    for process in processes:
+        if process.is_alive():
+            process.terminate()
+    time.sleep(1)
+    for process in processes:
+        if process.is_alive():
+            os.kill(process.pid, signal.SIGKILL)
+    sys.exit(0)
+
+
+def get_unfinished(action_space, use_model, observation_type, result_dir, total_file_json):
+    target_dir = os.path.join(result_dir, action_space, observation_type, use_model)
+    if not os.path.exists(target_dir):
+        return total_file_json
+
+    finished = {}
+    for domain in os.listdir(target_dir):
+        finished[domain] = []
+        domain_path = os.path.join(target_dir, domain)
+        if not os.path.isdir(domain_path):
+            continue
+        for example_id in os.listdir(domain_path):
+            example_path = os.path.join(domain_path, example_id)
+            if os.path.isdir(example_path) and "result.txt" in os.listdir(example_path):
+                finished[domain].append(example_id)
+
+    for domain, examples in finished.items():
+        if domain in total_file_json:
+            total_file_json[domain] = [item for item in total_file_json[domain] if item not in examples]
+    return total_file_json
+
+
+def filter_examples(test_all_meta: dict, domain: str, example_id: str | None) -> dict:
+    if domain != "all":
+        test_all_meta = {domain: test_all_meta[domain]}
+
+    if not example_id:
+        return test_all_meta
+
+    filtered = {
+        domain_name: [item for item in examples if item == example_id]
+        for domain_name, examples in test_all_meta.items()
+    }
+    filtered = {domain_name: examples for domain_name, examples in filtered.items() if examples}
+    if not filtered:
+        raise ValueError(f"example_id not found in selected task set: {example_id}")
+    return filtered
+
+
+def test(args: argparse.Namespace, test_all_meta: dict) -> None:
+    global processes
+    logger.info("Args: %s", args)
+    all_tasks = distribute_tasks(test_all_meta)
+    logger.info("Total tasks: %d", len(all_tasks))
+    with Manager() as manager:
+        shared_scores = manager.list()
+        task_queue = manager.Queue()
+        for item in all_tasks:
+            task_queue.put(item)
+
+        processes = []
+        for idx in range(args.num_envs):
+            process = Process(target=run_env_tasks, args=(task_queue, args, shared_scores), name=f"EnvProcess-{idx + 1}")
+            process.daemon = True
+            process.start()
+            processes.append(process)
+            logger.info("Started process %s with PID %s", process.name, process.pid)
+
+        try:
+            while True:
+                if task_queue.empty():
+                    break
+                if not any(process.is_alive() for process in processes):
+                    logger.error("All processes died, exiting.")
+                    break
+                time.sleep(5)
+            for process in processes:
+                process.join()
+        except KeyboardInterrupt:
+            signal_handler(signal.SIGINT, None)
+
+        scores = list(shared_scores)
+    logger.info("Average score: %s", sum(scores) / len(scores) if scores else 0)
+
+
+if __name__ == "__main__":
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    path_to_args = os.path.join(args.result_dir, args.action_space, args.observation_type, args.model, "args.json")
+    os.makedirs(os.path.dirname(path_to_args), exist_ok=True)
+    with open(path_to_args, "w", encoding="utf-8") as file:
+        json.dump(vars(args), file, indent=4, ensure_ascii=False)
+
+    with open(args.test_all_meta_path, "r", encoding="utf-8") as file:
+        test_all_meta = json.load(file)
+    test_all_meta = filter_examples(test_all_meta, args.domain, args.example_id)
+
+    test_file_list = get_unfinished(args.action_space, args.model, args.observation_type, args.result_dir, test_all_meta)
+    test(args, test_file_list)

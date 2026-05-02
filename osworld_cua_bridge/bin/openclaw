@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+
+def _post_json(url: str, payload: dict) -> tuple[str, int | None]:
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=600) as response:
+            return response.read().decode("utf-8", errors="replace"), int(response.status)
+    except urllib.error.HTTPError as exc:
+        return exc.read().decode("utf-8", errors="replace"), int(exc.code)
+
+
+def nodes_invoke(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="openclaw nodes invoke")
+    parser.add_argument("--node", required=True)
+    parser.add_argument("--command", required=True)
+    parser.add_argument("--params", required=True)
+    args = parser.parse_args(argv)
+
+    bridge_url = os.environ.get("OSWORLD_CUA_BRIDGE_URL", "").rstrip("/")
+    expected_node = os.environ.get("OSWORLD_CUA_NODE_ID", "")
+    if not bridge_url:
+        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": "OSWORLD_CUA_BRIDGE_URL is not set"}}))
+        return 2
+    if expected_node and args.node != expected_node:
+        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": f"node mismatch: expected {expected_node}, got {args.node}"}}))
+        return 2
+    if args.command != "cua.run":
+        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": f"unsupported command: {args.command}"}}))
+        return 2
+
+    try:
+        payload = json.loads(args.params)
+    except json.JSONDecodeError as exc:
+        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": f"params is not valid JSON: {exc}"}}))
+        return 2
+    if not isinstance(payload, dict):
+        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": "params must be a JSON object"}}))
+        return 2
+
+    expected_run_id = os.environ.get("OSWORLD_CUA_RUN_ID", "").strip()
+    if expected_run_id:
+        cua_run_id = payload.get("runId")
+        if cua_run_id and cua_run_id != expected_run_id:
+            payload["cuaRunId"] = cua_run_id
+        payload["runId"] = expected_run_id
+
+    body, status = _post_json(f"{bridge_url}/invoke", payload)
+    print(body)
+    return 0 if body else 1
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if len(argv) >= 2 and argv[0] == "nodes" and argv[1] == "invoke":
+        return nodes_invoke(argv[2:])
+    print("unsupported openclaw shim command", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
