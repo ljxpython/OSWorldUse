@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -11,6 +12,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from osworld_cua_bridge.executor import CuaBridgeExecutor
+from osworld_cua_bridge.failures import (
+    BRIDGE_EXEC_FAILED,
+    CUA_INTERRUPTED,
+    CUA_NONZERO_EXIT,
+    CUA_START_FAILED,
+    CUA_TIMEOUT,
+    write_failure,
+)
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from osworld_cua_bridge.server import BridgeServer
 
@@ -33,6 +42,12 @@ class CuaRunResult:
     bridge_url: str
     runtime_config_path: str
     config_redacted: bool
+    failure_type: str | None = None
+    failure_reason: str | None = None
+    failure_stage: str | None = None
+    bridge_error_count: int = 0
+    bridge_failure_types: list[str] | None = None
+    last_bridge_failure: dict[str, Any] | None = None
 
 
 def make_run_id(example: dict[str, Any]) -> str:
@@ -72,6 +87,7 @@ def run_cua_blackbox(
     max_steps = int(getattr(args, "max_steps", 0) or 0)
     max_duration_ms = int(getattr(args, "cua_max_duration_ms", 0) or 0)
     max_step_duration_ms = int(getattr(args, "cua_max_step_duration_ms", 0) or 0)
+    timeout_grace_seconds = float(getattr(args, "cua_timeout_grace_seconds", 60) or 0)
     config_path = getattr(args, "cua_config_path", None) or DEFAULT_CUA_CONFIG_PATH
     normalized_input = _config_normalized_input(config_path)
     config_path, config_env, config_redacted = _prepare_runtime_config(config_path, example_result_dir)
@@ -152,33 +168,82 @@ def run_cua_blackbox(
     env_vars.update(config_env)
 
     start = time.time()
+    exit_code = 0
+    failure_type: str | None = None
+    failure_reason: str | None = None
+    failure_stage: str | None = None
+    process: subprocess.Popen[str] | None = None
+    timeout_seconds = (max_duration_ms / 1000 + timeout_grace_seconds) if max_duration_ms > 0 else None
     try:
         with open(stdout_path, "w", encoding="utf-8") as stdout_file, open(stderr_path, "w", encoding="utf-8") as stderr_file:
-            process = subprocess.run(
+            process = subprocess.Popen(
                 command,
                 stdout=stdout_file,
                 stderr=stderr_file,
                 text=True,
                 env=env_vars,
-                timeout=(max_duration_ms / 1000 + 60) if max_duration_ms > 0 else None,
                 cwd=cua_repo_root,
+                start_new_session=True,
             )
-            exit_code = int(process.returncode)
+            previous_handlers = _install_signal_cleanup(process, stderr_file, example_result_dir)
+            try:
+                exit_code = int(process.wait(timeout=timeout_seconds))
+            finally:
+                _restore_signal_handlers(previous_handlers)
     except subprocess.TimeoutExpired as exc:
         exit_code = 124
+        failure_type = CUA_TIMEOUT
+        failure_reason = str(exc)
+        failure_stage = "cua_process"
+        if process is not None:
+            _terminate_process_tree(process)
         with open(stderr_path, "a", encoding="utf-8") as stderr_file:
             stderr_file.write(f"\n[osworld] CUA process timeout: {exc}\n")
-    except Exception as exc:
+    except (FileNotFoundError, PermissionError, OSError) as exc:
         exit_code = 1
+        failure_type = CUA_START_FAILED
+        failure_reason = str(exc)
+        failure_stage = "cua_process_start"
         with open(stderr_path, "a", encoding="utf-8") as stderr_file:
             stderr_file.write(f"\n[osworld] CUA process failed to start: {exc}\n")
     finally:
         server.stop()
     duration = time.time() - start
+    bridge_summary = executor.failure_summary()
+    bridge_error_count = int(bridge_summary.get("bridge_error_count") or 0)
+    bridge_failure_types = list(bridge_summary.get("bridge_failure_types") or [])
+    last_bridge_failure = bridge_summary.get("last_bridge_failure")
+
+    if failure_type is None and bridge_error_count > 0:
+        failure_type = str((last_bridge_failure or {}).get("failure_type") or BRIDGE_EXEC_FAILED)
+        failure_reason = str((last_bridge_failure or {}).get("failure_reason") or "bridge returned one or more errors")
+        failure_stage = "bridge"
+    if failure_type is None and exit_code != 0:
+        failure_type = CUA_NONZERO_EXIT
+        failure_reason = f"CUA exited with non-zero code: {exit_code}"
+        failure_stage = "cua_process"
+
+    if failure_type:
+        write_failure(
+            example_result_dir,
+            failure_type,
+            failure_reason or failure_type,
+            stage=failure_stage or "cua_blackbox",
+            details={
+                "exit_code": exit_code,
+                "command": command,
+                "duration_seconds": duration,
+                **bridge_summary,
+            },
+        )
+
     try:
         with open(runtime_log_path, "a", encoding="utf-8") as file:
             file.write(f"[osworld] cua_exit_code={exit_code}\n")
             file.write(f"[osworld] cua_duration_seconds={duration:.3f}\n")
+            if failure_type:
+                file.write(f"[osworld] failure_type={failure_type}\n")
+                file.write(f"[osworld] failure_stage={failure_stage}\n")
     except Exception:
         pass
     stdout = _read_text(stdout_path)
@@ -196,9 +261,74 @@ def run_cua_blackbox(
         bridge_url=server.url,
         runtime_config_path=config_path,
         config_redacted=config_redacted,
+        failure_type=failure_type,
+        failure_reason=failure_reason,
+        failure_stage=failure_stage,
+        bridge_error_count=bridge_error_count,
+        bridge_failure_types=bridge_failure_types,
+        last_bridge_failure=last_bridge_failure if isinstance(last_bridge_failure, dict) else None,
     )
     _write_meta(example_result_dir, result)
     return result
+
+
+def _install_signal_cleanup(process: subprocess.Popen[str], stderr_file: Any, result_dir: str) -> dict[int, Any]:
+    previous_handlers: dict[int, Any] = {}
+
+    def _handler(signum, frame):
+        message = f"CUA process interrupted by signal {signum}"
+        try:
+            stderr_file.write(f"\n[osworld] {message}\n")
+            stderr_file.flush()
+        except Exception:
+            pass
+        write_failure(
+            result_dir,
+            CUA_INTERRUPTED,
+            message,
+            stage="cua_process",
+            details={"signal": signum, "pid": process.pid},
+        )
+        _terminate_process_tree(process)
+        raise SystemExit(128 + int(signum))
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, _handler)
+    return previous_handlers
+
+
+def _restore_signal_handlers(previous_handlers: dict[int, Any]) -> None:
+    for signum, handler in previous_handlers.items():
+        signal.signal(signum, handler)
+
+
+def _terminate_process_tree(process: subprocess.Popen[str], grace_seconds: float = 5.0) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except Exception:
+        try:
+            process.terminate()
+        except Exception:
+            pass
+    try:
+        process.wait(timeout=grace_seconds)
+        return
+    except Exception:
+        pass
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except Exception:
+        try:
+            process.kill()
+        except Exception:
+            pass
+    try:
+        process.wait(timeout=grace_seconds)
+    except Exception:
+        pass
 
 
 def _read_text(path: str) -> str:
@@ -222,6 +352,12 @@ def _write_meta(example_result_dir: str, result: CuaRunResult) -> None:
         "runtime_config_path": result.runtime_config_path,
         "config_redacted": result.config_redacted,
         "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
+        "failure_type": result.failure_type,
+        "failure_reason": result.failure_reason,
+        "failure_stage": result.failure_stage,
+        "bridge_error_count": result.bridge_error_count,
+        "bridge_failure_types": result.bridge_failure_types or [],
+        "last_bridge_failure": result.last_bridge_failure,
     }
     with open(os.path.join(example_result_dir, "cua_meta.json"), "w", encoding="utf-8") as file:
         json.dump(payload, file, indent=2, ensure_ascii=False)

@@ -11,6 +11,14 @@ try:
 except ImportError:
     pass
 from lib_results_logger import log_task_completion
+from osworld_cua_bridge.failures import (
+    EVALUATE_FAILED,
+    RECORDING_FAILED,
+    UNKNOWN_ERROR,
+    merge_json_file,
+    read_failure_summary,
+    write_failure,
+)
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 
 
@@ -112,11 +120,47 @@ def _write_run_metadata(example_result_dir, args, metadata: dict) -> None:
         json.dump(payload, file, indent=2, ensure_ascii=False)
 
 
+def _sync_failure_metadata(example_result_dir: str) -> None:
+    failure = read_failure_summary(example_result_dir)
+    failure_type = failure.get("primary_failure_type")
+    if not failure_type:
+        return
+    patch = {
+        "failure_type": failure_type,
+        "failure_reason": failure.get("primary_failure_reason"),
+        "failure_count": len(failure.get("failures") or []),
+    }
+    for filename in ("run_meta.json", "cua_meta.json"):
+        path = os.path.join(example_result_dir, filename)
+        try:
+            merge_json_file(path, patch)
+        except Exception:
+            logger.exception("Failed to sync failure metadata into %s", path)
+
+
+def _append_traj_event(example_result_dir: str, payload: dict) -> None:
+    with open(os.path.join(example_result_dir, "traj.jsonl"), "a", encoding="utf-8") as file:
+        file.write(json.dumps(payload, ensure_ascii=False))
+        file.write("\n")
+
+
 def run_single_example_cua_blackbox(env, example, max_steps, instruction, args, example_result_dir, scores):
     from osworld_cua_bridge.launcher import run_cua_blackbox
 
     runtime_logger = setup_logger(example, example_result_dir)
-    env.reset(task_config=example)
+    try:
+        env.reset(task_config=example)
+    except Exception as exc:
+        write_failure(
+            example_result_dir,
+            UNKNOWN_ERROR,
+            str(exc),
+            stage="env_reset",
+            details={"example_id": example.get("id")},
+        )
+        _sync_failure_metadata(example_result_dir)
+        raise
+
     metadata = {
         "adapter_version": getattr(args, "adapter_version", "blackbox-v1"),
         "cua_version": getattr(args, "cua_version", None) or getattr(args, "model", "cua-blackbox"),
@@ -129,8 +173,21 @@ def run_single_example_cua_blackbox(env, example, max_steps, instruction, args, 
     _write_run_metadata(example_result_dir, args, metadata)
     time.sleep(getattr(args, "env_ready_sleep", 60))
 
-    env.controller.start_recording()
-    recording_started = True
+    recording_started = False
+    try:
+        env.controller.start_recording()
+        recording_started = True
+    except Exception as exc:
+        runtime_logger.exception("Failed to start recording: %s", exc)
+        write_failure(
+            example_result_dir,
+            RECORDING_FAILED,
+            str(exc),
+            stage="recording_start",
+            details={"example_id": example.get("id")},
+        )
+        _sync_failure_metadata(example_result_dir)
+
     cua_result = None
     try:
         cua_result = run_cua_blackbox(
@@ -141,32 +198,68 @@ def run_single_example_cua_blackbox(env, example, max_steps, instruction, args, 
             example_result_dir=example_result_dir,
         )
 
-        with open(os.path.join(example_result_dir, "traj.jsonl"), "a", encoding="utf-8") as file:
-            file.write(json.dumps({
+        _append_traj_event(
+            example_result_dir,
+            {
                 "mode": "cua_blackbox",
                 "run_id": cua_result.run_id,
                 "node_id": cua_result.node_id,
                 "command": cua_result.command,
                 "exit_code": cua_result.exit_code,
                 "duration_seconds": cua_result.duration_seconds,
-            }, ensure_ascii=False))
-            file.write("\n")
+                "failure_type": cua_result.failure_type,
+                "failure_reason": cua_result.failure_reason,
+                "failure_stage": cua_result.failure_stage,
+            },
+        )
+        _sync_failure_metadata(example_result_dir)
 
         settle_seconds = getattr(args, "settle_sleep", 20)
         if settle_seconds > 0:
             time.sleep(settle_seconds)
-        result = env.evaluate()
+        try:
+            result = env.evaluate()
+        except Exception as exc:
+            runtime_logger.exception("Evaluation failed: %s", exc)
+            write_failure(
+                example_result_dir,
+                EVALUATE_FAILED,
+                str(exc),
+                stage="evaluate",
+                details={"example_id": example.get("id")},
+            )
+            _append_traj_event(
+                example_result_dir,
+                {
+                    "mode": "cua_blackbox",
+                    "event": "evaluate_failed",
+                    "failure_type": EVALUATE_FAILED,
+                    "failure_reason": str(exc),
+                },
+            )
+            _sync_failure_metadata(example_result_dir)
+            raise
+
         logger.info("Result: %.2f", result)
         scores.append(result)
         with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
             f.write(f"{result}\n")
         log_task_completion(example, result, example_result_dir, args)
+        _sync_failure_metadata(example_result_dir)
     finally:
         if recording_started:
             try:
                 env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
             except Exception as exc:
                 runtime_logger.exception("Failed to end recording: %s", exc)
+                write_failure(
+                    example_result_dir,
+                    RECORDING_FAILED,
+                    str(exc),
+                    stage="recording_end",
+                    details={"example_id": example.get("id")},
+                )
+                _sync_failure_metadata(example_result_dir)
 
 
 def run_single_example_cua(agent, env, example, max_steps, instruction, args, example_result_dir, scores):

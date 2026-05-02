@@ -8,6 +8,7 @@ import threading
 import time
 from typing import Any
 
+from osworld_cua_bridge.failures import bridge_failure_type_from_code
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION, BridgeProtocolError, BridgeRequest, error, ok, parse_request
 from osworld_cua_bridge.tool_translator import ToolTranslationError, map_args_to_screen, tool_output, translate_tool_to_pyautogui
 
@@ -63,6 +64,8 @@ class CuaBridgeExecutor:
         self._log_path = os.path.join(result_dir, "bridge_requests.jsonl")
         self._screenshot_dir = os.path.join(result_dir, "bridge_screenshots")
         self._screen_size: tuple[int, int] | None = None
+        self._failure_counts: dict[str, int] = {}
+        self._last_failure: dict[str, Any] | None = None
         os.makedirs(self._screenshot_dir, exist_ok=True)
 
     def health(self) -> dict[str, Any]:
@@ -79,11 +82,14 @@ class CuaBridgeExecutor:
         try:
             req = parse_request(payload)
             if req.run_id != self.run_id:
-                return error(
+                response = error(
                     "BAD_REQUEST",
                     f"runId mismatch: expected {self.run_id}, got {req.run_id}",
                     {"expectedRunId": self.run_id, "actualRunId": req.run_id},
                 )
+                self._record_response_failure(req.tool, response)
+                self._write_log(req, response, cached=False)
+                return response
             cached = self._cache.get(req.req_id)
             if cached:
                 self._write_log(req, cached, cached=True)
@@ -101,22 +107,25 @@ class CuaBridgeExecutor:
                     response = self._execute_gui_tool(req)
 
             self._cache[req.req_id] = response
+            self._record_response_failure(req.tool, response)
             self._write_log(req, response, cached=False)
             return response
         except BridgeProtocolError as exc:
             response = error(exc.code, exc.message, exc.details)
+            self._record_raw_response_failure(payload, response)
             self._write_raw_log(payload, response)
             return response
         except Exception as exc:
             logger.exception("CUA bridge request failed")
             response = error("EXEC_FAILED", str(exc))
+            self._record_raw_response_failure(payload, response)
             self._write_raw_log(payload, response)
             return response
 
     def _screenshot(self, req: BridgeRequest) -> dict[str, Any]:
         screenshot = self.env.controller.get_screenshot()
         if not screenshot:
-            return error("EXEC_FAILED", "screenshot returned empty payload", {"reqId": req.req_id})
+            return error("SCREENSHOT_FAILED", "screenshot returned empty payload", {"reqId": req.req_id})
 
         width, height, mime = _read_image_metadata(screenshot)
 
@@ -154,7 +163,7 @@ class CuaBridgeExecutor:
         width = int(width or getattr(self.env, "screen_width", 0) or 0)
         height = int(height or getattr(self.env, "screen_height", 0) or 0)
         if width <= 0 or height <= 0:
-            return error("EXEC_FAILED", "invalid screen size", {"screenSize": screen_size})
+            return error("SCREEN_SIZE_FAILED", "invalid screen size", {"screenSize": screen_size})
         return ok(
             {
                 "type": "tool_result",
@@ -193,19 +202,23 @@ class CuaBridgeExecutor:
             else:
                 command = translate_tool_to_pyautogui(req.tool, mapped_args)
         except ToolTranslationError as exc:
-            return error("BAD_REQUEST", str(exc), {"tool": req.tool, "args": req.args})
+            return error("TOOL_TRANSLATION_FAILED", str(exc), {"tool": req.tool, "args": req.args})
 
         if not command:
             return error("UNSUPPORTED_TOOL", f"unsupported tool: {req.tool}", {"tool": req.tool})
 
         result = self.env.controller.execute_python_command(command)
         if result is None:
-            return error("EXEC_FAILED", "controller returned empty result", {"tool": req.tool, "command": command})
+            return error("CONTROLLER_EXEC_FAILED", "controller returned empty result", {"tool": req.tool, "command": command})
         if isinstance(result, dict):
             returncode = result.get("returncode", 0)
             status = result.get("status")
             if returncode not in (0, None) or status == "error":
-                return error("EXEC_FAILED", str(result.get("error") or result.get("message") or "command failed"), {"result": result, "command": command})
+                return error(
+                    "CONTROLLER_EXEC_FAILED",
+                    str(result.get("error") or result.get("message") or "command failed"),
+                    {"result": result, "command": command},
+                )
 
         return ok(
             {
@@ -219,6 +232,43 @@ class CuaBridgeExecutor:
                 "controllerResult": result,
             }
         )
+
+    def failure_summary(self) -> dict[str, Any]:
+        return {
+            "bridge_error_count": sum(self._failure_counts.values()),
+            "bridge_failure_counts": dict(sorted(self._failure_counts.items())),
+            "bridge_failure_types": sorted(self._failure_counts),
+            "last_bridge_failure": self._last_failure,
+        }
+
+    def _record_response_failure(self, tool: str, response: dict[str, Any]) -> None:
+        if response.get("ok") is True:
+            return
+        error_payload = response.get("error")
+        if not isinstance(error_payload, dict):
+            failure_type = "bridge_exec_failed"
+            message = json.dumps(response, ensure_ascii=False, default=str)
+            code = "UNKNOWN"
+            details = {}
+        else:
+            code = str(error_payload.get("code") or "UNKNOWN")
+            failure_type = bridge_failure_type_from_code(code)
+            message = str(error_payload.get("message") or "")
+            details = error_payload.get("details") if isinstance(error_payload.get("details"), dict) else {}
+
+        self._failure_counts[failure_type] = self._failure_counts.get(failure_type, 0) + 1
+        self._last_failure = {
+            "failure_type": failure_type,
+            "failure_reason": message,
+            "bridge_error_code": code,
+            "tool": tool,
+            "details": details,
+            "timestamp": time.time(),
+        }
+
+    def _record_raw_response_failure(self, payload: dict[str, Any], response: dict[str, Any]) -> None:
+        tool = str(payload.get("tool") or "")
+        self._record_response_failure(tool, response)
 
     def _write_log(self, req: BridgeRequest, response: dict[str, Any], cached: bool) -> None:
         record = {

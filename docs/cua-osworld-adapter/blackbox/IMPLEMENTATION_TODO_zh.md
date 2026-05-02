@@ -252,15 +252,15 @@
 
 ### 12.2 P2：异常分类与清理补强
 
-- [ ] 定义统一 `failure_type`
-- [ ] CUA 启动失败写入结构化失败原因
-- [ ] CUA timeout 写入结构化失败原因
-- [ ] bridge 错误写入结构化失败原因
-- [ ] controller 执行失败写入结构化失败原因
-- [ ] evaluate 失败写入结构化失败原因
-- [ ] 强制中断后清理 CUA 子进程
-- [ ] 强制中断后关闭 bridge server
-- [ ] 强制中断后保留已完成结果
+- [x] 定义统一 `failure_type`
+- [x] CUA 启动失败写入结构化失败原因
+- [x] CUA timeout 写入结构化失败原因
+- [x] bridge 错误写入结构化失败原因
+- [x] controller 执行失败写入结构化失败原因
+- [x] evaluate 失败写入结构化失败原因
+- [x] 强制中断后清理 CUA 子进程
+- [x] 强制中断后关闭 bridge server
+- [x] 强制中断后保留已完成结果
 
 ### 12.3 P3：批量评测汇总
 

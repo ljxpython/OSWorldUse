@@ -14,6 +14,7 @@ from typing import List
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 import lib_run_single
+from osworld_cua_bridge.failures import RECORDING_FAILED, UNKNOWN_ERROR, read_failure_summary, write_failure
 from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
 
 
@@ -84,6 +85,7 @@ def config() -> argparse.Namespace:
     parser.add_argument("--cua_node_id", type=str, default=None)
     parser.add_argument("--cua_max_duration_ms", type=int, default=0)
     parser.add_argument("--cua_max_step_duration_ms", type=int, default=0)
+    parser.add_argument("--cua_timeout_grace_seconds", type=float, default=60)
     parser.add_argument("--openclaw_bin", type=str, default=None)
     parser.add_argument("--cua_extra_args", nargs=argparse.REMAINDER, default=None)
 
@@ -194,10 +196,25 @@ def run_env_tasks(task_queue, args: argparse.Namespace, shared_scores: list):
 
                     logger.error("Exception in %s %s/%s: %s", current_process().name, domain, example_id, exc)
                     logger.error(traceback.format_exc())
+                    if not read_failure_summary(example_result_dir).get("primary_failure_type"):
+                        write_failure(
+                            example_result_dir,
+                            UNKNOWN_ERROR,
+                            str(exc),
+                            stage="task_run",
+                            details={"domain": domain, "example_id": example_id},
+                        )
                     try:
                         env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
                     except Exception as rec_exc:
                         logger.error("Failed to end recording: %s", rec_exc)
+                        write_failure(
+                            example_result_dir,
+                            RECORDING_FAILED,
+                            str(rec_exc),
+                            stage="recording_end",
+                            details={"domain": domain, "example_id": example_id},
+                        )
                     with open(os.path.join(example_result_dir, "traj.jsonl"), "a", encoding="utf-8") as file:
                         file.write(json.dumps({"Error": f"{domain}/{example_id} - {exc}"}, ensure_ascii=False))
                         file.write("\n")

@@ -9,12 +9,15 @@ import sys
 import time
 import urllib.request
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any, Callable
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
 from osworld_cua_bridge.executor import CuaBridgeExecutor
+from osworld_cua_bridge.failures import CUA_START_FAILED, CUA_TIMEOUT, EVALUATE_FAILED, read_failure_summary
+from osworld_cua_bridge.launcher import run_cua_blackbox
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from osworld_cua_bridge.server import BridgeServer
 from osworld_cua_bridge.tool_translator import map_args_to_screen, translate_tool_to_pyautogui
@@ -49,12 +52,29 @@ class FakeController:
         self.commands.append(command)
         return {"returncode": 0, "output": "ok", "error": ""}
 
+    def start_recording(self) -> None:
+        return None
+
+    def end_recording(self, dest: str) -> None:
+        return None
+
 
 class FakeEnv:
     def __init__(self) -> None:
         self.controller = FakeController()
         self.screen_width = 1920
         self.screen_height = 1080
+
+    def reset(self, task_config: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"screenshot": PNG_BYTES, "instruction": task_config.get("instruction") if task_config else None}
+
+    def evaluate(self) -> float:
+        return 0.0
+
+
+class EvaluateFailedEnv(FakeEnv):
+    def evaluate(self) -> float:
+        raise RuntimeError("evaluate exploded")
 
 
 def _request(executor: CuaBridgeExecutor, req_id: str, tool: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -204,6 +224,144 @@ def check_openclaw_shim(result_dir: str) -> None:
         server.stop()
 
 
+def check_launcher_failure_classification(result_dir: str) -> None:
+    case_dir = os.path.join(result_dir, "launcher_start_failure")
+    os.makedirs(case_dir, exist_ok=True)
+    config_path = os.path.join(case_dir, "local.json")
+    with open(config_path, "w", encoding="utf-8") as file:
+        json.dump({"agent": {}, "coords": {"normalizedInput": True}}, file)
+
+    args = SimpleNamespace(
+        max_steps=1,
+        cua_max_duration_ms=0,
+        cua_max_step_duration_ms=0,
+        cua_config_path=config_path,
+        cua_bin=os.path.join(case_dir, "missing-cua-binary"),
+        cua_repo_root=ROOT_DIR,
+        cua_runs_dir=None,
+        cua_node_id="failure-smoke-node",
+        screen_width=1920,
+        screen_height=1080,
+        cua_extra_args=None,
+    )
+    result = run_cua_blackbox(
+        env=FakeEnv(),
+        example={"id": "launcher-start-failure"},
+        instruction="this should fail before CUA starts",
+        args=args,
+        example_result_dir=case_dir,
+    )
+    assert result.exit_code == 1
+    assert result.failure_type == CUA_START_FAILED
+    failure = read_failure_summary(case_dir)
+    assert failure["primary_failure_type"] == CUA_START_FAILED
+    with open(os.path.join(case_dir, "cua_meta.json"), encoding="utf-8") as file:
+        meta = json.load(file)
+    assert meta["failure_type"] == CUA_START_FAILED
+
+
+def check_launcher_timeout_classification(result_dir: str) -> None:
+    case_dir = os.path.join(result_dir, "launcher_timeout")
+    os.makedirs(case_dir, exist_ok=True)
+    config_path = os.path.join(case_dir, "local.json")
+    with open(config_path, "w", encoding="utf-8") as file:
+        json.dump({"agent": {}, "coords": {"normalizedInput": True}}, file)
+
+    fake_cua = os.path.join(case_dir, "fake-cua-timeout")
+    with open(fake_cua, "w", encoding="utf-8") as file:
+        file.write("#!/usr/bin/env bash\nsleep 10\n")
+    os.chmod(fake_cua, 0o755)
+
+    args = SimpleNamespace(
+        max_steps=1,
+        cua_max_duration_ms=1,
+        cua_max_step_duration_ms=0,
+        cua_timeout_grace_seconds=0.1,
+        cua_config_path=config_path,
+        cua_bin=fake_cua,
+        cua_repo_root=ROOT_DIR,
+        cua_runs_dir=None,
+        cua_node_id="timeout-smoke-node",
+        screen_width=1920,
+        screen_height=1080,
+        cua_extra_args=None,
+    )
+    result = run_cua_blackbox(
+        env=FakeEnv(),
+        example={"id": "launcher-timeout"},
+        instruction="this should time out",
+        args=args,
+        example_result_dir=case_dir,
+    )
+    assert result.exit_code == 124
+    assert result.failure_type == CUA_TIMEOUT
+    failure = read_failure_summary(case_dir)
+    assert failure["primary_failure_type"] == CUA_TIMEOUT
+
+
+def check_evaluate_failure_classification(result_dir: str) -> None:
+    from lib_run_single import run_single_example_cua_blackbox
+
+    case_dir = os.path.join(result_dir, "evaluate_failure")
+    os.makedirs(case_dir, exist_ok=True)
+    config_path = os.path.join(case_dir, "local.json")
+    with open(config_path, "w", encoding="utf-8") as file:
+        json.dump({"agent": {}, "coords": {"normalizedInput": True}}, file)
+
+    fake_cua = os.path.join(case_dir, "fake-cua-success")
+    with open(fake_cua, "w", encoding="utf-8") as file:
+        file.write("#!/usr/bin/env bash\nexit 0\n")
+    os.chmod(fake_cua, 0o755)
+
+    args = SimpleNamespace(
+        model="cua-smoke",
+        adapter_version="blackbox-v1",
+        bridge_protocol_version=BRIDGE_PROTOCOL_VERSION,
+        eval_profile="ubuntu-cua-local-smoke-v1",
+        test_all_meta_path="local-smoke",
+        action_space="pyautogui",
+        observation_type="screenshot",
+        env_ready_sleep=0,
+        settle_sleep=0,
+        max_steps=1,
+        cua_max_duration_ms=0,
+        cua_max_step_duration_ms=0,
+        cua_timeout_grace_seconds=0.1,
+        cua_config_path=config_path,
+        cua_bin=fake_cua,
+        cua_repo_root=ROOT_DIR,
+        cua_runs_dir=None,
+        cua_node_id="evaluate-failure-node",
+        screen_width=1920,
+        screen_height=1080,
+        cua_extra_args=None,
+    )
+
+    try:
+        run_single_example_cua_blackbox(
+            EvaluateFailedEnv(),
+            {"id": "evaluate-failure", "instruction": "trigger evaluate failure"},
+            1,
+            "trigger evaluate failure",
+            args,
+            case_dir,
+            [],
+        )
+    except RuntimeError as exc:
+        assert "evaluate exploded" in str(exc)
+    else:
+        raise AssertionError("expected evaluate failure")
+
+    failure = read_failure_summary(case_dir)
+    assert failure["primary_failure_type"] == EVALUATE_FAILED
+    with open(os.path.join(case_dir, "run_meta.json"), encoding="utf-8") as file:
+        run_meta = json.load(file)
+    assert run_meta["failure_type"] == EVALUATE_FAILED
+    with open(os.path.join(case_dir, "cua_meta.json"), encoding="utf-8") as file:
+        cua_meta = json.load(file)
+    assert cua_meta["failure_type"] == EVALUATE_FAILED
+
+
 def run_check(check_id: str, name: str, fn: Callable[[], None]) -> CheckResult:
     try:
         fn()
@@ -229,6 +387,9 @@ def main() -> int:
         run_check("SMK-006", "hotkey and key press translation", lambda: check_bridge_actions(result_dir)),
         run_check("SMK-007", "done terminal semantics", lambda: check_bridge_actions(result_dir)),
         run_check("SMK-008", "openclaw shim and structured errors", lambda: check_openclaw_shim(result_dir)),
+        run_check("SMK-009", "launcher failure classification", lambda: check_launcher_failure_classification(result_dir)),
+        run_check("SMK-010", "launcher timeout classification", lambda: check_launcher_timeout_classification(result_dir)),
+        run_check("SMK-011", "evaluate failure classification", lambda: check_evaluate_failure_classification(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)
