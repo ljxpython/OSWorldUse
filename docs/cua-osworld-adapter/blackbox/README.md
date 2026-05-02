@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-这是当前支持的实现路线，隶属于 `../cua-osworld-adapter/` 主线文档体系。
+这是当前支持的实现路线，隶属于上级 `cua-osworld-adapter/` 主线文档体系。
 
 当前实现入口：
 
@@ -25,7 +25,7 @@
 
 和根目录下原有文档的关系：
 
-- `../cua-osworld-adapter/CUA_OSWORLD_ADAPTER_INTERFACE_DESIGN_zh.md`
+- `../CUA_OSWORLD_ADAPTER_INTERFACE_DESIGN_zh.md`
   主要描述“OSWorld 主控、CUA 适配成 agent”的方案 A。
 - `./PLAN_B_CUA_BLACKBOX_OSWORLD_INTEGRATION_zh.md`
   主要描述“CUA 主控、OSWorld 提供远程执行环境与评测”的方案 B。
@@ -35,4 +35,4 @@
 1. 如果目标是尽量少改 `CUA`，优先快速验证 benchmark 接入，先看方案 B。
 2. 如果目标是长期做标准 `mm_agents` 接入，再看方案 A。
 
-如果本目录和 `../cua-osworld-adapter/` 的描述出现冲突，以当前 blackbox 代码实现为准。
+如果本目录和上级 `cua-osworld-adapter/` 的描述出现冲突，以当前 blackbox 代码实现为准。

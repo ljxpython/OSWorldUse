@@ -1,6 +1,6 @@
 # Docs Index
 
-这个目录目前分成 4 类内容：
+这个目录目前分成 3 类内容：
 
 - `code-reading/`
   面向 OSWorld 仓库源码阅读、运行链路、Agent 接入和实践文档。
@@ -8,8 +8,7 @@
   面向 CUA、Benchmark、成本核算、环境验证和方案设计的研究笔记。
 - `cua-osworld-adapter/`
   这是 CUA 接入 OSWorld 的主线文档目录。当前支持的实现路线已经收敛到 blackbox bridge。
-- `cua-blackbox/`
-  这是 blackbox bridge 的实现补充文档，后续应逐步并入 `cua-osworld-adapter/` 主线目录。
+  `blackbox/` 补充文档现在已经并入这个目录下面。
 
 ## 当前主线
 
@@ -46,7 +45,4 @@
 - [CUA Smoke Test 用例表](./cua-osworld-adapter/CUA_SMOKE_TEST_MATRIX_zh.md)
 - [CUA 方案 A 实现路线图](./cua-osworld-adapter/IMPLEMENTATION_ROADMAP_zh.md)
 - [CUA 方案 A 实现任务拆分](./cua-osworld-adapter/IMPLEMENTATION_TASKS_zh.md)
-
-## CUA Blackbox
-
-- [blackbox bridge 实现补充文档](./cua-blackbox/README.md)
+- [blackbox bridge 实现补充文档](./cua-osworld-adapter/blackbox/README.md)

@@ -8,7 +8,7 @@
 
 当前已经收敛并落地验证的实现路线是 blackbox bridge：
 
-- `../cua-blackbox/`
+- `./blackbox/`
 - `osworld_cua_bridge/`
 - `scripts/python/run_multienv_cua_blackbox.py`
 
@@ -33,6 +33,7 @@
 - [CUA Smoke Test 用例表](./CUA_SMOKE_TEST_MATRIX_zh.md)
 - [CUA 方案 A 实现路线图](./IMPLEMENTATION_ROADMAP_zh.md)
 - [CUA 方案 A 实现任务拆分](./IMPLEMENTATION_TASKS_zh.md)
+- [blackbox bridge 实现补充文档](./blackbox/README.md)
 
 ## 本地校验命令
 
@@ -48,4 +49,4 @@ python3 scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke
 - Smoke test 用例表定义每次 `CUA` 或 adapter 升级前必须跑的最小检查。
 - 后续的计划清单、自测点、实现任务也放在这个目录里。
 
-如果这里的总设计描述和 `../cua-blackbox/` 的实现细节有冲突，以当前 blackbox 代码实现为准。
+如果这里的总设计描述和 `./blackbox/` 的实现细节有冲突，以当前 blackbox 代码实现为准。
