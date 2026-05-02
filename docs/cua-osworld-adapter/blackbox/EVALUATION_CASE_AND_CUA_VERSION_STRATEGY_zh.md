@@ -295,6 +295,8 @@ uv run python scripts/python/validate_cua_regression_cases.py \
 
 这些 CUA 相关参数既可以通过 CLI 传入，也可以通过环境变量作为默认值传入。CLI 参数优先级高于环境变量。
 
+本仓库会在启动 CUA blackbox 相关入口时尝试加载仓库根目录 `.env`。`.env` 只保存本机路径、密钥和本地 timeout 默认值，不提交到仓库；代码中不保留 `/Users/.../cua` 这类本机硬编码 fallback。
+
 | CLI 参数 | 环境变量 | 建议 |
 | --- | --- | --- |
 | `--cua_bin` | `OSWORLD_CUA_BIN` | 适合写入 env，用于切换 CUA 二进制 |
@@ -348,9 +350,10 @@ cua run --help
 
 ```bash
 uv run python scripts/python/check_cua_blackbox_compatibility.py \
-  --cua_config_path /Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json \
   --result_dir ./results_cua_compatibility
 ```
+
+如果未显式传 `--cua_config_path`，该命令从 `.env` 的 `OSWORLD_CUA_CONFIG_PATH` 读取。
 
 输出：
 
@@ -401,10 +404,10 @@ uv run python scripts/python/run_multienv_cua_blackbox.py \
   --result_dir ./results_cua_regression \
   --screen_width 1920 \
   --screen_height 1080 \
-  --cua_bin <path-to-cua-binary> \
-  --cua_config_path <path-to-cua-config> \
   --log_level INFO
 ```
+
+`--cua_bin` 和 `--cua_config_path` 可省略，默认从 `.env` 的 `OSWORLD_CUA_BIN` 与 `OSWORLD_CUA_CONFIG_PATH` 读取；升级验证时可以显式传参覆盖。
 
 通过标准：
 

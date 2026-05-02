@@ -17,7 +17,7 @@
 
 执行链路：
 
-1. `Blackbox Runner` 读取 `test_all` 或回归集合，把任务放入队列。
+1. `Blackbox Runner` 读取仓库根目录 `.env` 中的 CUA 默认参数，再读取 `test_all` 或回归集合，把任务放入队列。
 2. `num_envs=N` 时启动 N 个 `EnvProcess`。
 3. 每个 `EnvProcess` 创建一个 `DesktopEnv`，并通过 provider 绑定一个独立桌面环境。
 4. 每个任务启动一个 `CUA Binary`，并把 `OSWORLD_CUA_BRIDGE_URL`、`OSWORLD_CUA_RUN_ID`、`OSWORLD_CUA_NODE_ID` 注入到 CUA 子进程环境变量。
@@ -25,6 +25,8 @@
 6. `BridgeExecutor` 校验 `runId`，把 CUA 工具请求翻译成 OSWorld controller 动作。
 7. OSWorld controller 操作目标 Ubuntu 桌面，任务结束后执行 `env.evaluate()`。
 8. 结果写入标准 OSWorld 结果目录，并生成 `summary` / `failure` 汇总。
+
+CUA 路径、配置文件、版本标签和 timeout 默认值走 `.env`；命令行显式传入的参数优先级更高。这样本仓库不需要硬编码任何本机 CUA 路径，也不需要修改 `CUA` 源码。
 
 ## 3. 并发硬约束
 

@@ -289,9 +289,10 @@ CUA blackbox 兼容性检查：
 
 ```bash
 uv run python scripts/python/check_cua_blackbox_compatibility.py \
-  --cua_config_path /Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json \
   --result_dir ./results_cua_compatibility
 ```
+
+该命令默认读取仓库根目录 `.env` 中的 `OSWORLD_CUA_CONFIG_PATH`、`OSWORLD_CUA_BIN`、`OSWORLD_CUA_REPO_ROOT` 等配置；需要临时切换 CUA 版本时再显式传 CLI 参数覆盖。
 
 CUA 回归 case 静态检查：
 

@@ -7,9 +7,12 @@ import sys
 
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.insert(0, ROOT_DIR)
+
+from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
+
 RUNNER = os.path.join(ROOT_DIR, "scripts", "python", "run_multienv_cua_blackbox.py")
 DEFAULT_META_PATH = os.path.join(ROOT_DIR, "evaluation_examples", "test_cua_regression.json")
-DEFAULT_CONFIG_PATH = "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json"
 
 
 def config() -> argparse.Namespace:
@@ -30,7 +33,7 @@ def config() -> argparse.Namespace:
     parser.add_argument("--settle_sleep", type=float, default=5)
     parser.add_argument("--cua_bin", type=str, default=_env_str("OSWORLD_CUA_BIN"))
     parser.add_argument("--cua_repo_root", type=str, default=_env_str("OSWORLD_CUA_REPO_ROOT"))
-    parser.add_argument("--cua_config_path", type=str, default=_env_str("OSWORLD_CUA_CONFIG_PATH", DEFAULT_CONFIG_PATH))
+    parser.add_argument("--cua_config_path", type=str, default=_env_str("OSWORLD_CUA_CONFIG_PATH", DEFAULT_CUA_CONFIG_PATH))
     parser.add_argument("--cua_runs_dir", type=str, default=_env_str("OSWORLD_CUA_RUNS_DIR"))
     parser.add_argument("--cua_node_id", type=str, default=_env_str("OSWORLD_CUA_NODE_ID"))
     parser.add_argument("--cua_max_duration_ms", type=int, default=_env_int("OSWORLD_CUA_MAX_DURATION_MS", 420000))
@@ -41,7 +44,10 @@ def config() -> argparse.Namespace:
     parser.add_argument("--log_level", type=str, default="INFO")
     parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--cua_extra_args", nargs=argparse.REMAINDER, default=None)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.cua_config_path:
+        parser.error("CUA config path is required. Set --cua_config_path or OSWORLD_CUA_CONFIG_PATH.")
+    return args
 
 
 def _env_str(name: str, default: str | None = None) -> str | None:

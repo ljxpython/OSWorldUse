@@ -34,6 +34,12 @@
 - VMware 单 VM
 - 并行稳定性 `TP-026` 暂缓，不阻塞当前阶段单环境评测
 
+当前 CUA 参数默认值：
+
+- `OSWORLD_CUA_BIN`、`OSWORLD_CUA_CONFIG_PATH`、`OSWORLD_CUA_REPO_ROOT` 等默认从仓库根目录 `.env` 读取
+- CLI 参数优先级高于 `.env`
+- `.env` 不提交到仓库，代码中不保留本机 CUA 路径硬编码
+
 当前文档包括：
 
 - [方案总设计与实施清单](./PLAN_B_CUA_BLACKBOX_OSWORLD_INTEGRATION_zh.md)

@@ -63,6 +63,12 @@ def _sha256(path: str | None) -> str | None:
     return digest.hexdigest()
 
 
+def _abs_path(path: str | None) -> str:
+    if not path:
+        return ""
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(path)))
+
+
 def _command_binary_path(command: list[str]) -> str | None:
     if not command:
         return None
@@ -110,10 +116,10 @@ def _help_text(result: dict[str, Any]) -> str:
 
 def build_report(args: argparse.Namespace) -> dict[str, Any]:
     result_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.result_dir)))
-    config_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cua_config_path)))
+    config_path = _abs_path(args.cua_config_path)
     meta_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.meta_path)))
     cases_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cases_dir)))
-    openclaw_bin = os.path.abspath(os.path.expanduser(os.path.expandvars(args.openclaw_bin)))
+    openclaw_bin = _abs_path(args.openclaw_bin)
     cua_command = resolve_cua_command(args.cua_bin)
     cua_binary_path = _command_binary_path(cua_command)
 

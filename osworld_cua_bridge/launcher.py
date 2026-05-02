@@ -25,14 +25,19 @@ from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from osworld_cua_bridge.server import BridgeServer
 
 
-DEFAULT_CUA_CONFIG_PATH = os.environ.get(
-    "OSWORLD_CUA_CONFIG_PATH",
-    "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json",
-)
-DEFAULT_CUA_REPO_ROOT = os.environ.get(
-    "OSWORLD_CUA_REPO_ROOT",
-    "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua",
-)
+def _load_dotenv_if_available() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    load_dotenv(os.path.join(root_dir, ".env"), override=False)
+
+
+_load_dotenv_if_available()
+
+DEFAULT_CUA_CONFIG_PATH = os.environ.get("OSWORLD_CUA_CONFIG_PATH")
+DEFAULT_CUA_REPO_ROOT = os.environ.get("OSWORLD_CUA_REPO_ROOT")
 
 
 @dataclass
@@ -71,6 +76,7 @@ def make_run_id(example: dict[str, Any]) -> str:
 
 
 def resolve_cua_command(cua_bin: str | None) -> list[str]:
+    cua_bin = cua_bin or os.environ.get("OSWORLD_CUA_BIN")
     if cua_bin:
         expanded = os.path.abspath(os.path.expanduser(os.path.expandvars(cua_bin)))
         if expanded.endswith(".js"):
@@ -80,10 +86,6 @@ def resolve_cua_command(cua_bin: str | None) -> list[str]:
     from_path = shutil.which("cua")
     if from_path:
         return [from_path]
-
-    candidate = "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/dist/cli/bin.js"
-    if os.path.exists(candidate):
-        return ["node", candidate]
 
     return ["cua"]
 
@@ -103,6 +105,8 @@ def run_cua_blackbox(
     max_step_duration_ms = int(getattr(args, "cua_max_step_duration_ms", 0) or 0)
     timeout_grace_seconds = float(getattr(args, "cua_timeout_grace_seconds", 60) or 0)
     config_path = getattr(args, "cua_config_path", None) or DEFAULT_CUA_CONFIG_PATH
+    if not config_path:
+        raise ValueError("CUA config path is required. Set --cua_config_path or OSWORLD_CUA_CONFIG_PATH.")
     source_config_path = os.path.abspath(os.path.expanduser(os.path.expandvars(config_path)))
     source_config_sha256 = _file_sha256(source_config_path)
     normalized_input = _config_normalized_input(config_path)
@@ -111,7 +115,8 @@ def run_cua_blackbox(
     runs_dir = getattr(args, "cua_runs_dir", None) or os.path.join(example_result_dir, "cua_runs")
     runs_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(runs_dir)))
     cua_repo_root = getattr(args, "cua_repo_root", None) or DEFAULT_CUA_REPO_ROOT
-    cua_repo_root = os.path.abspath(os.path.expanduser(os.path.expandvars(cua_repo_root)))
+    if cua_repo_root:
+        cua_repo_root = os.path.abspath(os.path.expanduser(os.path.expandvars(cua_repo_root)))
     openclaw_shim = getattr(args, "openclaw_bin", None) or os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "bin",
