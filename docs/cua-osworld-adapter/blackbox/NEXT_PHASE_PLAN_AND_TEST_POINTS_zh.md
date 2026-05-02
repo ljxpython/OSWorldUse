@@ -232,7 +232,7 @@
 - 2026-05-02 已新增 `scripts/python/check_cua_blackbox_compatibility.py`，覆盖 CUA CLI 契约、config/openclaw 存在性、hash 元数据和回归 case 静态检查。
 - 2026-05-02 已增强 `scripts/python/validate_cua_regression_cases.py`，检查 evaluator metric 和 getter 是否存在，并可输出 JSON report。
 - 2026-05-02 已执行 CUA 兼容性检查，`cua --help`、`cua run --help`、回归 case 静态检查均通过。
-- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-015` 全部通过。
+- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。
 
 ---
 

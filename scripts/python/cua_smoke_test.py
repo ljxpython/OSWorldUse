@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -61,6 +62,18 @@ class FakeController:
         return None
 
 
+class BlockingController(FakeController):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def execute_python_command(self, command: str) -> dict[str, Any]:
+        self.started.set()
+        self.release.wait(timeout=5)
+        return super().execute_python_command(command)
+
+
 class FakeEnv:
     def __init__(self) -> None:
         self.controller = FakeController()
@@ -77,6 +90,12 @@ class FakeEnv:
 class EvaluateFailedEnv(FakeEnv):
     def evaluate(self) -> float:
         raise RuntimeError("evaluate exploded")
+
+
+class BlockingEnv(FakeEnv):
+    def __init__(self) -> None:
+        super().__init__()
+        self.controller = BlockingController()
 
 
 def _request(executor: CuaBridgeExecutor, req_id: str, tool: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -186,6 +205,35 @@ def check_bridge_actions(result_dir: str) -> None:
     _assert_ok(_request(executor, "done-001", "done", {"reason": "smoke"}))
     assert executor.done is True
     assert executor.done_reason == "smoke"
+
+
+def check_bridge_busy(result_dir: str) -> None:
+    env = BlockingEnv()
+    executor = CuaBridgeExecutor(
+        env=env,
+        result_dir=result_dir,
+        run_id=RUN_ID,
+        node_id=NODE_ID,
+        normalized_input=True,
+    )
+    responses: list[dict[str, Any]] = []
+    first = threading.Thread(
+        target=lambda: responses.append(_request(executor, "busy-first", "mouse_click", {"x": 500, "y": 500})),
+        daemon=True,
+    )
+    first.start()
+    try:
+        assert env.controller.started.wait(timeout=2), "first request did not enter controller execution"
+        busy = _request(executor, "busy-second", "mouse_click", {"x": 500, "y": 500})
+        assert busy["ok"] is False
+        assert busy["error"]["code"] == "BUSY"
+        summary = executor.failure_summary()
+        assert summary["bridge_failure_counts"]["bridge_busy"] == 1
+    finally:
+        env.controller.release.set()
+        first.join(timeout=2)
+    assert not first.is_alive(), "first request did not finish"
+    assert responses and responses[0]["ok"] is True
 
 
 def check_app_open_linux_strategy(result_dir: str) -> None:
@@ -541,6 +589,7 @@ def main() -> int:
         run_check("SMK-013", "summary domain and csv outputs", lambda: check_summary_domain_and_csv(result_dir)),
         run_check("SMK-014", "summary rebuild cli and failure rollup", lambda: check_summary_rebuild_cli(result_dir)),
         run_check("SMK-015", "app_open linux strategy", lambda: check_app_open_linux_strategy(result_dir)),
+        run_check("SMK-016", "bridge busy error classification", lambda: check_bridge_busy(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)

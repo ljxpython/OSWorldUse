@@ -95,7 +95,17 @@ class CuaBridgeExecutor:
                 self._write_log(req, cached, cached=True)
                 return cached
 
-            with self._lock:
+            if not self._lock.acquire(blocking=False):
+                response = error(
+                    "BUSY",
+                    "bridge executor is busy processing another request",
+                    {"runId": req.run_id, "reqId": req.req_id, "tool": req.tool},
+                )
+                self._record_response_failure(req.tool, response)
+                self._write_log(req, response, cached=False)
+                return response
+
+            try:
                 self._request_count += 1
                 if req.tool == "screenshot":
                     response = self._screenshot(req)
@@ -105,6 +115,8 @@ class CuaBridgeExecutor:
                     response = self._done(req)
                 else:
                     response = self._execute_gui_tool(req)
+            finally:
+                self._lock.release()
 
             self._cache[req.req_id] = response
             self._record_response_failure(req.tool, response)

@@ -178,3 +178,4 @@ P6 验证记录：
 - 2026-05-02 `validate_cua_regression_cases.py` 静态检查 5 个回归 case 通过。
 - 2026-05-02 `check_cua_blackbox_compatibility.py` 检查 CUA CLI、config、openclaw、回归 case 通过。
 - 2026-05-02 `cua_smoke_test.py` 本地 smoke `SMK-001` 到 `SMK-015` 全部通过。
+- 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_bridge_busy` 本地 smoke `SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。

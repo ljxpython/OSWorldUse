@@ -27,24 +27,26 @@
 
 以下是 hard gate，必须全部通过：
 
-- [ ] 能启动 `CUA` 二进制
-- [ ] 能执行一个最小 OSWorld 任务
-- [ ] `CUA` 的动作作用在 OSWorld VM，而不是宿主机
-- [ ] `screenshot` 能稳定返回
-- [ ] `mouse_click` 能稳定生效
-- [ ] `clipboard_type` 能稳定输入文本
-- [ ] `env.evaluate()` 能正常运行
-- [ ] 结果文件能保存
+- [x] 能启动 `CUA` 二进制
+- [x] 能执行一个最小 OSWorld 任务
+- [x] `CUA` 的动作作用在 OSWorld VM，而不是宿主机
+- [x] `screenshot` 能稳定返回
+- [x] `mouse_click` 能稳定生效
+- [x] `clipboard_type` 能稳定输入文本
+- [x] `env.evaluate()` 能正常运行
+- [x] 结果文件能保存
 
 ## 3.2 建议通过
 
 以下是 soft gate，建议通过但不作为第一阶段硬门槛：
 
-- [ ] `mouse_drag` 可用
-- [ ] `mouse_scroll` 可用
-- [ ] `hotkey` 可用
-- [ ] 子进程 stderr 可读
-- [ ] 任务中断后能清理
+- [x] `mouse_drag` 可用
+- [x] `mouse_scroll` 可用
+- [x] `hotkey` 可用
+- [x] 子进程 stderr 可读
+- [x] 任务中断后能清理
+
+当前 Mac 本地阶段已经按 `num_envs=1` 通过。`num_envs>1` 并行验收受单 VM 环境阻塞，暂不作为当前阶段 hard gate。
 
 ---
 

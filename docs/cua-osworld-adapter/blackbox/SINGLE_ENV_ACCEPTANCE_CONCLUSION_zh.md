@@ -33,6 +33,8 @@
   CUA CLI、config、openclaw、回归 case 静态检查通过。
 - `results_cua_smoke_p6/cua_smoke_report.json`
   `SMK-001` 到 `SMK-015` 全部通过。
+- `results_cua_smoke_bridge_busy/cua_smoke_report.json`
+  `SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。
 
 ## 4. 当前不通过或暂缓项
 

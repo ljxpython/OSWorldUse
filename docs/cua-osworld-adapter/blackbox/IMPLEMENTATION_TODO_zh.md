@@ -9,10 +9,9 @@
 
 当前状态：
 
-- Phase 0 到 Phase 2 的 MVP 主链路已经实现，并完成本地 smoke 与单个真实 VM benchmark 闭环。
-- Phase 3 仍以稳定性和异常恢复为主，属于下一轮补强。
-- Phase 4 已具备基本批量入口，仍缺 domain 级统计和结构化失败分类。
-- Phase 5 继续保持第一阶段不做。
+- Phase 0 到 Phase 4 的 `num_envs=1` 主链路已经实现，并完成本地 smoke、真实 VM 工具功能、小批量真实 CUA 回归和汇总报表验收。
+- Phase 3 的必需异常分类与清理能力已经补齐；GUI 语义级自动判定仍作为未来增强。
+- Phase 5 当前只恢复 `app_open`，其余 shell / office / records / brain 等能力继续保持第一阶段不做。
 
 ---
 
@@ -127,12 +126,12 @@
 
 ### 6.1 常见失败处理
 
-- [ ] screenshot 超时
-- [ ] click 未生效
-- [ ] 文本输入错位
-- [ ] 子进程中断
+- [x] screenshot / screen size / controller 异常写入结构化失败原因
+- [ ] click 未生效的语义级自动判定（当前通过录屏、前后截图和日志定位）
+- [ ] 文本输入错位的语义级自动判定（当前通过录屏、前后截图和日志定位）
+- [x] 子进程中断
 - [x] runId mismatch 明确报错
-- [ ] 远程桥 busy
+- [x] 远程桥 busy 专项错误码
 
 ### 6.2 可观测性
 
@@ -143,9 +142,10 @@
 
 ### 6.3 清理逻辑
 
-- [ ] 任务结束后清理临时文件
-- [ ] 异常退出时清理子进程
-- [ ] 断点恢复不破坏已有结果
+- [x] 任务结束后关闭 bridge server
+- [x] 异常退出时清理子进程
+- [x] 断点恢复不破坏已有结果
+- [ ] CUA runsDir 临时文件自动清理策略（当前默认保留用于排障）
 
 ---
 
@@ -166,8 +166,8 @@
 ### 7.3 统计
 
 - [x] 输出总分
-- [ ] 输出 domain 分数
-- [ ] 输出失败分类
+- [x] 输出 domain 分数
+- [x] 输出失败分类
 
 ---
 
@@ -212,7 +212,7 @@
 4. 结果和日志可以回溯
 5. 不需要修改 `CUA` 核心运行逻辑
 
-当前 MVP 代码链路已满足以上 5 条；正式阶段验收仍需要补齐 Phase 3 的稳定性验收和 Phase 4 的统计输出。
+当前 `num_envs=1` 代码链路已满足以上 5 条，并已补齐必需稳定性验收和统计输出。后续继续推进时只处理并发环境、语义级自动判定、额外 CUA tool、CUA 升级回归等增强项。
 
 ---
 
@@ -325,3 +325,4 @@
 - 2026-05-02 执行 `scripts/python/validate_cua_regression_cases.py --report_path ./results_cua_case_validation/report.json`，5 个回归 case 静态检查通过。
 - 2026-05-02 执行 `scripts/python/check_cua_blackbox_compatibility.py --result_dir ./results_cua_compatibility`，`cua --help`、`cua run --help`、config、openclaw、回归 case 检查均通过。
 - 2026-05-02 执行 `scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke_p6`，`SMK-001` 到 `SMK-015` 全部通过。
+- 2026-05-02 执行 `scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke_bridge_busy`，`SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 busy 错误码和 `bridge_busy` 失败分类。
