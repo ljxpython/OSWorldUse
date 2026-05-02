@@ -24,6 +24,7 @@ from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from osworld_cua_bridge.reporting import build_blackbox_summary
 from osworld_cua_bridge.server import BridgeServer
 from osworld_cua_bridge.tool_translator import map_args_to_screen, translate_tool_to_pyautogui
+from scripts.python.build_cua_blackbox_report import build_report, write_outputs
 
 
 RUN_ID = "cua-smoke-local"
@@ -547,6 +548,7 @@ def check_summary_rebuild_cli(result_dir: str) -> None:
             result_root,
             "--test_all_meta_path",
             meta_path,
+            "--build_report",
         ],
         text=True,
         capture_output=True,
@@ -554,6 +556,7 @@ def check_summary_rebuild_cli(result_dir: str) -> None:
     )
     assert proc.returncode == 0, proc.stderr or proc.stdout
     assert "summary_dir:" in proc.stdout
+    assert "index_html:" in proc.stdout
 
     with open(os.path.join(result_root, "summary", "failure_summary.json"), encoding="utf-8") as file:
         failures = json.load(file)
@@ -562,6 +565,45 @@ def check_summary_rebuild_cli(result_dir: str) -> None:
     assert timeout_bucket["count"] == 1
     assert timeout_bucket["domains"] == ["browser"]
     assert timeout_bucket["statuses"]["failed"] == 1
+    assert os.path.exists(os.path.join(result_root, "report", "report.json"))
+    assert os.path.exists(os.path.join(result_root, "report", "report.md"))
+    assert os.path.exists(os.path.join(result_root, "report", "index.html"))
+
+
+def check_report_generation(result_dir: str) -> None:
+    result_root, task_set, meta_path = _prepare_summary_fixture(result_dir)
+    build_blackbox_summary(
+        result_root,
+        task_set=task_set,
+        task_set_path=meta_path,
+        metadata={
+            "model": "cua-smoke",
+            "adapter_version": "blackbox-v1",
+            "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
+            "eval_profile": "ubuntu-cua-local-smoke-v1",
+            "cua_version": "local-smoke",
+        },
+    )
+    args = SimpleNamespace(
+        result_root=result_root,
+        result_dir=result_dir,
+        action_space="pyautogui",
+        observation_type="screenshot",
+        model="cua-smoke",
+        output_dir=os.path.join(result_root, "report"),
+        title="CUA Smoke Report",
+        smoke_report="",
+        functional_report="",
+        compatibility_report="",
+        case_acceptance_report="",
+    )
+    report = build_report(args)
+    paths = write_outputs(report)
+    assert report["summary"]["exists"] is True
+    assert report["conclusion"]["status"] == "fail"
+    assert os.path.exists(paths["report_json"])
+    assert os.path.exists(paths["report_md"])
+    assert os.path.exists(paths["index_html"])
 
 
 def run_check(check_id: str, name: str, fn: Callable[[], None]) -> CheckResult:
@@ -598,6 +640,7 @@ def main() -> int:
         run_check("SMK-015", "app_open linux strategy", lambda: check_app_open_linux_strategy(result_dir)),
         run_check("SMK-016", "bridge busy error classification", lambda: check_bridge_busy(result_dir)),
         run_check("SMK-017", "get_cursor_position bridge tool", lambda: check_bridge_protocol(result_dir)),
+        run_check("SMK-018", "unified blackbox report generation", lambda: check_report_generation(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)

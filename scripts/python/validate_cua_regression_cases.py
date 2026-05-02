@@ -11,9 +11,12 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
 from desktop_env.evaluators import getters, metrics
+from scripts.python.cua_blackbox_defaults import (
+    DEFAULT_CASES_DIR,
+    default_cua_regression_meta_path,
+)
 
-DEFAULT_META_PATH = os.path.join(ROOT_DIR, "evaluation_examples", "test_cua_regression.json")
-DEFAULT_CASES_DIR = os.path.join(ROOT_DIR, "evaluation_examples", "examples")
+DEFAULT_META_PATH = default_cua_regression_meta_path()
 
 
 def config() -> argparse.Namespace:

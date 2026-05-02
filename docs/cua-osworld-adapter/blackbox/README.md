@@ -13,6 +13,7 @@
 - `osworld_cua_bridge/`
 - `scripts/python/run_multienv_cua_blackbox.py`
 - `scripts/python/build_cua_blackbox_summary.py`
+- `scripts/python/build_cua_blackbox_report.py`
 - `scripts/python/run_cua_blackbox_regression.py`
 - `scripts/python/validate_cua_regression_cases.py`
 - `scripts/python/check_cua_case_acceptance.py`
@@ -23,12 +24,37 @@
 
 - `evaluation_examples/test_cua_regression.json`
 
+后续测试输入规范：
+
+- 现有 OSWorld 用例继续复用 `evaluation_examples/examples/<domain>/<case_id>.json`
+- 新增 CUA blackbox 专用 suite/profile/case 放到 `evaluation_examples/cua_blackbox/`
+- `evaluation_examples/test_cua_regression.json` 作为兼容入口保留，新文档和后续脚本优先使用 `evaluation_examples/cua_blackbox/suites/regression.json`
+
 当前批量评测会在结果根目录自动生成：
 
 - `summary/summary.json`
 - `summary/summary.csv`
 - `summary/domain_summary.json`
 - `summary/failure_summary.json`
+
+需要对外展示时，可以额外执行：
+
+```bash
+uv run python scripts/python/build_cua_blackbox_report.py \
+  --result_root <result-root>
+```
+
+或者在批量评测 / 重建 summary 时直接加：
+
+```bash
+--build_report
+```
+
+该命令会生成：
+
+- `report/report.json`
+- `report/report.md`
+- `report/index.html`
 
 当前 Mac 本地阶段验收范围：
 
@@ -51,6 +77,7 @@
 - [实现任务清单](./IMPLEMENTATION_TODO_zh.md)
 - [下一阶段整体规划与测试点](./NEXT_PHASE_PLAN_AND_TEST_POINTS_zh.md)
 - [评测 Case 扩展与 CUA 版本兼容策略](./EVALUATION_CASE_AND_CUA_VERSION_STRATEGY_zh.md)
+- [测试输入与报告展示规划](./TEST_INPUTS_AND_REPORTING_PLAN_zh.md)
 - [伪代码实现草案](./PSEUDOCODE_IMPLEMENTATION_zh.md)
 - [验收标准](./ACCEPTANCE_CRITERIA_zh.md)
 - [总体任务清单](./MASTER_CHECKLIST_zh.md)
@@ -67,6 +94,7 @@
 1. 如果目标是尽量少改 `CUA`，优先快速验证 benchmark 接入，先看方案 B。
 2. 如果目标是继续开发和验收当前 blackbox 路线，按“下一阶段整体规划与测试点”推进。
 3. 如果目标是新增评测 case 或升级 CUA 版本，按“评测 Case 扩展与 CUA 版本兼容策略”推进。
-4. 如果目标是长期做标准 `mm_agents` 接入，再看方案 A。
+4. 如果目标是规范测试输入或生成对外报告，按“测试输入与报告展示规划”推进。
+5. 如果目标是长期做标准 `mm_agents` 接入，再看方案 A。
 
 如果本目录和上级 `cua-osworld-adapter/` 的描述出现冲突，以当前 blackbox 代码实现为准。

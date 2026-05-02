@@ -118,8 +118,18 @@ CUA 接入回归 case：
 
 - 目标是验证 CUA blackbox 链路、GUI 工具和稳定性。
 - 可以复用 `evaluation_examples/examples/<domain>/`，但先放入单独 meta 文件。
-- 建议 meta 文件命名为 `evaluation_examples/test_cua_regression.json`。
+- 新的 suite/profile/case 统一放到 `evaluation_examples/cua_blackbox/`。
+- `evaluation_examples/test_cua_regression.json` 作为历史兼容入口保留。
+- 新增通用 benchmark case 仍放到 `evaluation_examples/examples/<domain>/`。
+- 新增 CUA blackbox 专用 case 可以放到 `evaluation_examples/cua_blackbox/cases/<domain>/<case_id>.json`。
 - 不应污染正式 benchmark 统计，除非 case 已被确认是通用任务。
+
+当前推荐的回归 meta 路径：
+
+- 新路径：`evaluation_examples/cua_blackbox/suites/regression.json`
+- 兼容路径：`evaluation_examples/test_cua_regression.json`
+
+短期内两个路径应保持内容一致，直到脚本默认路径全部迁移完成。
 
 当前已固定的小批量回归集合：
 
@@ -186,7 +196,7 @@ CUA 接入回归 case：
 
 ```bash
 uv run python scripts/python/validate_cua_regression_cases.py \
-  --meta_path evaluation_examples/test_cua_regression.json \
+  --meta_path evaluation_examples/cua_blackbox/suites/regression.json \
   --report_path ./results_cua_case_validation/report.json
 ```
 
@@ -194,7 +204,7 @@ uv run python scripts/python/validate_cua_regression_cases.py \
 
 ```bash
 uv run python scripts/python/check_cua_case_acceptance.py \
-  --meta_path evaluation_examples/test_cua_regression.json \
+  --meta_path evaluation_examples/cua_blackbox/suites/regression.json \
   --result_dir ./results_cua_case_acceptance_static
 ```
 
@@ -211,7 +221,7 @@ uv run python scripts/python/check_cua_case_acceptance.py \
 
 ```bash
 uv run python scripts/python/check_cua_case_acceptance.py \
-  --meta_path evaluation_examples/test_cua_regression.json \
+  --meta_path evaluation_examples/cua_blackbox/suites/regression.json \
   --domain <domain> \
   --example_id <case-id> \
   --provider_name vmware \
@@ -245,7 +255,7 @@ uv run python scripts/python/check_cua_case_acceptance.py \
 
 ```bash
 uv run python scripts/python/check_cua_case_acceptance.py \
-  --meta_path evaluation_examples/test_cua_regression.json \
+  --meta_path evaluation_examples/cua_blackbox/suites/regression.json \
   --domain <domain> \
   --example_id <case-id> \
   --provider_name vmware \
@@ -437,7 +447,7 @@ uv run python scripts/python/run_multienv_cua_blackbox.py \
   --headless \
   --action_space pyautogui \
   --observation_type screenshot \
-  --test_all_meta_path evaluation_examples/test_cua_regression.json \
+  --test_all_meta_path evaluation_examples/cua_blackbox/suites/regression.json \
   --model <cua-version-label> \
   --num_envs 1 \
   --result_dir ./results_cua_regression \

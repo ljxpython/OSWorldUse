@@ -15,6 +15,7 @@ from osworld_cua_bridge.reporting import (
     load_task_set_file,
     summary_metadata_from_args,
 )
+from scripts.python.build_cua_blackbox_report import build_report, write_outputs
 
 
 def config() -> argparse.Namespace:
@@ -25,6 +26,9 @@ def config() -> argparse.Namespace:
     parser.add_argument("--model", type=str, default="cua-blackbox")
     parser.add_argument("--test_all_meta_path", type=str, default="")
     parser.add_argument("--result_root", type=str, default="")
+    parser.add_argument("--build_report", action="store_true", help="Also build report/report.json, report.md and index.html")
+    parser.add_argument("--report_output_dir", type=str, default="", help="Defaults to <result_root>/report")
+    parser.add_argument("--report_title", type=str, default="CUA Blackbox Evaluation Report")
     return parser.parse_args()
 
 
@@ -68,6 +72,24 @@ def main() -> int:
             **totals
         )
     )
+    if args.build_report:
+        report_args = argparse.Namespace(
+            result_root=result_root,
+            result_dir=args.result_dir,
+            action_space=args.action_space,
+            observation_type=args.observation_type,
+            model=args.model,
+            output_dir=args.report_output_dir,
+            title=args.report_title,
+            smoke_report="",
+            functional_report="",
+            compatibility_report="",
+            case_acceptance_report="",
+        )
+        paths = write_outputs(build_report(report_args))
+        print(f"report_json: {paths['report_json']}")
+        print(f"report_md: {paths['report_md']}")
+        print(f"index_html: {paths['index_html']}")
     return 0
 
 

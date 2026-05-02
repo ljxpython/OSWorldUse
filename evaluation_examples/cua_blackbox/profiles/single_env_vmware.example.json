@@ -1,0 +1,21 @@
+{
+  "provider_name": "vmware",
+  "num_envs": 1,
+  "action_space": "pyautogui",
+  "observation_type": "screenshot",
+  "test_all_meta_path": "evaluation_examples/cua_blackbox/suites/regression.json",
+  "screen_width": 1920,
+  "screen_height": 1080,
+  "headless": true,
+  "env_ready_sleep": 10,
+  "settle_sleep": 5,
+  "max_steps": 20,
+  "result_dir": "./results_cua_regression",
+  "env": {
+    "OSWORLD_CUA_BIN": "",
+    "OSWORLD_CUA_CONFIG_PATH": "",
+    "OSWORLD_CUA_REPO_ROOT": "",
+    "OSWORLD_OPENCLAW_BIN": "",
+    "OSWORLD_CUA_VERSION": ""
+  }
+}

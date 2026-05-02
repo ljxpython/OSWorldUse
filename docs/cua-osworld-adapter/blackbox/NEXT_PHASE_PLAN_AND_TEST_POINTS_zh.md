@@ -217,7 +217,7 @@
 建议实现：
 
 - 补充 case 静态检查或说明文档。
-- 固定 `evaluation_examples/test_cua_regression.json` 作为 CUA 小批量回归集合。
+- 固定 `evaluation_examples/cua_blackbox/suites/regression.json` 作为 CUA 小批量回归集合，保留 `evaluation_examples/test_cua_regression.json` 兼容入口。
 - 在 summary 中保留 `cua_version`、`adapter_version`、`bridge_protocol_version`、`eval_profile`。
 - 后续补强 CUA binary hash、config hash、repo commit。
 
@@ -232,8 +232,46 @@
 - 2026-05-02 已新增 `scripts/python/check_cua_blackbox_compatibility.py`，覆盖 CUA CLI 契约、config/openclaw 存在性、hash 元数据和回归 case 静态检查。
 - 2026-05-02 已增强 `scripts/python/validate_cua_regression_cases.py`，检查 evaluator metric 和 getter 是否存在，并可输出 JSON report。
 - 2026-05-02 已执行 CUA 兼容性检查，`cua --help`、`cua run --help`、回归 case 静态检查均通过。
-- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-017` 全部通过，其中 `SMK-016` 覆盖 bridge busy，`SMK-017` 覆盖 `get_cursor_position`。
+- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-018` 全部通过，其中 `SMK-016` 覆盖 bridge busy，`SMK-017` 覆盖 `get_cursor_position`，`SMK-018` 覆盖统一报告生成器。
 - 2026-05-02 已执行真实 VM 单工具 functional，`TP-003a get_cursor_position` 通过。
+
+---
+
+## 3.7 P7：测试输入规范与美观报告
+
+目的：
+
+- 统一 CUA blackbox 专用 suite/profile 的输入目录。
+- 保留现有 OSWorld case 复用能力，不复制已有用例。
+- 在机器可读 JSON/CSV 之外，生成适合对外阅读的 HTML/Markdown 报告。
+- 为后续 Web 展示预留稳定的 `report.json` 数据结构。
+
+详细策略：
+
+- [测试输入与报告展示规划](./TEST_INPUTS_AND_REPORTING_PLAN_zh.md)
+
+建议实现：
+
+- 新建 `evaluation_examples/cua_blackbox/`。
+- 新建 `evaluation_examples/cua_blackbox/suites/regression.json`，优先引用现有 OSWorld case。
+- 后续新增 CUA 专用 case 放到 `evaluation_examples/cua_blackbox/cases/`，不要复制已有 OSWorld case。
+- 保留 `evaluation_examples/test_cua_regression.json` 兼容入口。
+- 新增 `scripts/python/build_cua_blackbox_report.py`。
+- 输出 `report/report.json`、`report/report.md`、`report/index.html`。
+- 后续再新增只读 Web 展示脚本。
+
+当前实现状态：
+
+- 2026-05-02 已新增 `evaluation_examples/cua_blackbox/`，并保留旧路径兼容。
+- 2026-05-02 已新增 `scripts/python/build_cua_blackbox_report.py`，支持生成 JSON、Markdown、HTML 三种报告。
+- 2026-05-02 已支持 `run_multienv_cua_blackbox.py --build_report` 和 `build_cua_blackbox_summary.py --build_report` 可选生成报告。
+
+通过标准：
+
+- 新旧 suite 都能通过 case validation。
+- 给定一个已有 result root 能生成统一报告。
+- HTML 报告可以离线打开，能看懂总体结论、domain 汇总、失败分类和 artifacts 链接。
+- Web 展示只读，不修改原始评测结果。
 
 ---
 
@@ -275,7 +313,7 @@
 | TP-031 | version | CUA CLI 兼容检查 | `cua --help` / `cua run --help` | 必需 flag 仍存在 |
 | TP-032 | version | CUA 配置兼容检查 | `check_cua_blackbox_compatibility.py` | config 存在且 hash 可记录 |
 | TP-033 | version | CUA openclaw 兼容检查 | `check_cua_blackbox_compatibility.py` + smoke | openclaw shim 请求格式兼容 |
-| TP-034 | version | CUA 小批量升级回归 | `test_cua_regression.json` | 至少 3 个任务跑到 evaluate |
+| TP-034 | version | CUA 小批量升级回归 | `evaluation_examples/cua_blackbox/suites/regression.json`，兼容 `test_cua_regression.json` | 至少 3 个任务跑到 evaluate |
 
 ---
 
@@ -300,7 +338,7 @@ CUA 回归 case 静态检查：
 
 ```bash
 uv run python scripts/python/validate_cua_regression_cases.py \
-  --meta_path evaluation_examples/test_cua_regression.json \
+  --meta_path evaluation_examples/cua_blackbox/suites/regression.json \
   --report_path ./results_cua_case_validation/report.json
 ```
 
@@ -340,6 +378,35 @@ uv run python scripts/python/cua_bridge_vm_functional_test.py \
 ```
 
 说明：最后一个命令是下一阶段要新增的目标入口，当前文档先定义目标行为和验收点。
+
+统一报告生成：
+
+```bash
+uv run python scripts/python/build_cua_blackbox_report.py \
+  --result_root <result-root> \
+  --smoke_report <path-to-cua_smoke_report.json> \
+  --functional_report <path-to-functional_report.json> \
+  --compatibility_report <path-to-compatibility_report.json> \
+  --case_acceptance_report <path-to-case_acceptance_report.json>
+```
+
+只传 `--result_root` 时，脚本会从 `<result-root>/summary/` 读取 blackbox summary，并把报告写到 `<result-root>/report/`。
+
+也可以在评测结束后自动生成：
+
+```bash
+uv run python scripts/python/run_multienv_cua_blackbox.py \
+  ... \
+  --build_report
+```
+
+或在重建 summary 时同时生成：
+
+```bash
+uv run python scripts/python/build_cua_blackbox_summary.py \
+  --result_root <result-root> \
+  --build_report
+```
 
 ---
 

@@ -18,6 +18,7 @@ import lib_run_single
 from osworld_cua_bridge.failures import RECORDING_FAILED, UNKNOWN_ERROR, read_failure_summary, write_failure
 from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
 from osworld_cua_bridge.reporting import blackbox_result_root, build_blackbox_summary, summary_metadata_from_args
+from scripts.python.build_cua_blackbox_report import build_report, write_outputs
 
 
 active_environments = []
@@ -57,6 +58,9 @@ def config() -> argparse.Namespace:
 
     parser.add_argument("--model", type=str, default="cua-blackbox")
     parser.add_argument("--result_dir", type=str, default="./results_cua_blackbox")
+    parser.add_argument("--build_report", action="store_true", help="Also build report/report.json, report.md and index.html after summary")
+    parser.add_argument("--report_output_dir", type=str, default="", help="Defaults to <result_root>/report")
+    parser.add_argument("--report_title", type=str, default="CUA Blackbox Evaluation Report")
     parser.add_argument("--num_envs", type=int, default=1)
     parser.add_argument(
         "--log_level",
@@ -328,6 +332,22 @@ def generate_summary(args: argparse.Namespace, selected_task_set: dict) -> dict:
         totals["pending_tasks"],
         totals["average_score"],
     )
+    if args.build_report:
+        report_args = argparse.Namespace(
+            result_root=result_root,
+            result_dir=args.result_dir,
+            action_space=args.action_space,
+            observation_type=args.observation_type,
+            model=args.model,
+            output_dir=args.report_output_dir,
+            title=args.report_title,
+            smoke_report="",
+            functional_report="",
+            compatibility_report="",
+            case_acceptance_report="",
+        )
+        paths = write_outputs(build_report(report_args))
+        logger.info("Report generated at %s", paths["index_html"])
     return summary
 
 

@@ -10,9 +10,10 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
 from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
+from scripts.python.cua_blackbox_defaults import default_cua_regression_meta_path
 
 RUNNER = os.path.join(ROOT_DIR, "scripts", "python", "run_multienv_cua_blackbox.py")
-DEFAULT_META_PATH = os.path.join(ROOT_DIR, "evaluation_examples", "test_cua_regression.json")
+DEFAULT_META_PATH = default_cua_regression_meta_path()
 
 
 def config() -> argparse.Namespace:

@@ -169,6 +169,23 @@
 - [x] `TP-031` 到 `TP-033` CUA CLI、配置、openclaw 兼容检查通过
 - [ ] `TP-034` CUA 小批量升级回归通过（等待实际 CUA 升级时执行）
 
+---
+
+## 14. 测试输入与报告展示
+
+- [x] 明确现有 OSWorld 用例继续复用 `evaluation_examples/examples/`
+- [x] 明确新增 CUA blackbox 专用 suite/profile/case 放到 `evaluation_examples/cua_blackbox/`
+- [x] 明确统一报告生成器规划
+- [x] 新建 `evaluation_examples/cua_blackbox/` 输入目录
+- [x] 迁移或新增 `evaluation_examples/cua_blackbox/suites/regression.json`
+- [x] 预留 `evaluation_examples/cua_blackbox/cases/` 给新增 CUA 专用 case
+- [x] 新增 `scripts/python/build_cua_blackbox_report.py`
+- [x] 输出 `report/report.json`
+- [x] 输出 `report/report.md`
+- [x] 输出 `report/index.html`
+- [x] 支持 runner / summary CLI 通过 `--build_report` 可选生成报告
+- [ ] 后续新增 Web 展示脚本
+
 P5 并行验证记录：
 
 - 2026-05-02 尝试 `num_envs=2`，两个 EnvProcess 同时竞争 `vmware_vm_data/Ubuntu0/Ubuntu0.vmx`，VMware provider 启动失败。
@@ -182,4 +199,5 @@ P6 验证记录：
 - 2026-05-02 `cua_smoke_test.py` 本地 smoke `SMK-001` 到 `SMK-015` 全部通过。
 - 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_bridge_busy` 本地 smoke `SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。
 - 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_cursor` 本地 smoke `SMK-001` 到 `SMK-017` 全部通过。
+- 2026-05-02 `cua_smoke_test.py --result_dir /tmp/osworld_cua_smoke_with_report` 本地 smoke `SMK-001` 到 `SMK-018` 全部通过，其中 `SMK-018` 覆盖统一报告生成器。
 - 2026-05-02 `cua_bridge_vm_functional_test.py --tools get_cursor_position --result_dir ./results_cua_bridge_cursor_functional` 真实 VM 单工具功能测试通过。
