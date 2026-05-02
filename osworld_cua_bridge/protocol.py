@@ -24,6 +24,7 @@ SUPPORTED_TOOLS = {
     "wait",
     "app_open",
     "get_screen_size",
+    "get_cursor_position",
     "done",
 }
 
@@ -35,7 +36,6 @@ DISABLED_TOOLS = {
     "read_record",
     "wait_for_user",
     "osascript_exec",
-    "get_cursor_position",
 }
 
 

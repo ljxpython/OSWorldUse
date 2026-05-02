@@ -113,6 +113,7 @@ def make_tool_cases(screen_width: int, screen_height: int, normalized_input: boo
     return [
         ToolCase("TP-002", "screenshot", {}, "screenshot returns a valid image payload"),
         ToolCase("TP-003", "get_screen_size", {}, "get_screen_size returns the VM screen size"),
+        ToolCase("TP-003a", "get_cursor_position", {}, "get_cursor_position returns the VM cursor position"),
         ToolCase("TP-004", "mouse_click", {"x": center_x, "y": center_y}, "single click at the VM screen center"),
         ToolCase("TP-005", "mouse_double_click", {"x": center_x, "y": center_y}, "double click at the VM screen center"),
         ToolCase("TP-006", "mouse_right_click", {"x": center_x, "y": center_y}, "right click at the VM screen center"),
@@ -223,6 +224,20 @@ def validate_response(case: ToolCase, response: dict[str, Any] | None) -> tuple[
             return False, f"screen size output is not JSON: {exc}"
         if int(screen.get("width") or 0) <= 0 or int(screen.get("height") or 0) <= 0:
             return False, "screen size width/height must be positive"
+        return True, None
+
+    if case.tool == "get_cursor_position":
+        try:
+            cursor = json.loads(str(payload.get("output") or "{}"))
+        except json.JSONDecodeError as exc:
+            return False, f"cursor position output is not JSON: {exc}"
+        if "x" not in cursor or "y" not in cursor:
+            return False, "cursor position output must include x/y"
+        try:
+            int(cursor["x"])
+            int(cursor["y"])
+        except (TypeError, ValueError) as exc:
+            return False, f"cursor position x/y must be integers: {exc}"
         return True, None
 
     return True, None

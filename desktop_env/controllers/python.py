@@ -494,6 +494,33 @@ class PythonController:
         logger.error("Failed to get screen size.")
         return None
 
+    def get_cursor_position(self):
+        """
+        Gets the current cursor position in the VM.
+        """
+
+        for _ in range(self.retry_times):
+            try:
+                response = requests.get(self.http_server + "/cursor_position")
+                if response.status_code == 200:
+                    logger.info("Got cursor position successfully")
+                    payload = response.json()
+                    if isinstance(payload, list) and len(payload) >= 2:
+                        return {"x": int(payload[0]), "y": int(payload[1])}
+                    if isinstance(payload, dict):
+                        return {"x": int(payload["x"]), "y": int(payload["y"])}
+                    logger.error("Invalid cursor position payload: %s", payload)
+                else:
+                    logger.error("Failed to get cursor position. Status code: %d", response.status_code)
+                    logger.info("Retrying to get cursor position.")
+            except Exception as e:
+                logger.error("An error occurred while trying to get cursor position: %s", e)
+                logger.info("Retrying to get cursor position.")
+            time.sleep(self.retry_interval)
+
+        logger.error("Failed to get cursor position.")
+        return None
+
     def get_vm_window_size(self, app_class_name: str):
         """
         Gets the size of the vm app window.

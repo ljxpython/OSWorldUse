@@ -176,7 +176,7 @@
 以下内容不在第一阶段：
 
 - [x] `app_open`
-- [ ] `get_cursor_position`
+- [x] `get_cursor_position`
 - [ ] `wait_for_user`
 - [ ] `shell_exec`
 - [ ] `officecli`
@@ -326,3 +326,5 @@
 - 2026-05-02 执行 `scripts/python/check_cua_blackbox_compatibility.py --result_dir ./results_cua_compatibility`，`cua --help`、`cua run --help`、config、openclaw、回归 case 检查均通过。
 - 2026-05-02 执行 `scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke_p6`，`SMK-001` 到 `SMK-015` 全部通过。
 - 2026-05-02 执行 `scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke_bridge_busy`，`SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 busy 错误码和 `bridge_busy` 失败分类。
+- 2026-05-02 执行 `scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke_cursor`，`SMK-001` 到 `SMK-017` 全部通过，其中 `SMK-017` 覆盖 `get_cursor_position`。
+- 2026-05-02 执行 `scripts/python/cua_bridge_vm_functional_test.py --tools get_cursor_position --result_dir ./results_cua_bridge_cursor_functional`，`TP-003a get_cursor_position` 真实 VM 单工具功能测试通过。

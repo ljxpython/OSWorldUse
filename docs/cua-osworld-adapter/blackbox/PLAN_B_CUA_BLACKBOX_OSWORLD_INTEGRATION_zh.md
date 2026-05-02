@@ -281,8 +281,6 @@ bridge 的目标不是重做一个 agent，而是：
 - `record_info`
 - `read_record`
 - `wait_for_user`
-- `app_open`
-- `get_cursor_position`
 - `osascript_exec`
 
 原因：
@@ -607,8 +605,8 @@ node dist/cli/bin.js run ...
 
 ## Phase 4：增强与收敛
 
-1. 决定是否支持 `app_open`
-2. 决定是否支持 `get_cursor_position`
+1. 已支持 `app_open`
+2. 已支持 `get_cursor_position`
 3. 决定是否支持 `wait_for_user`
 4. 决定是否把 blackbox 结果再转成更标准的 OSWorld `traj.jsonl`
 

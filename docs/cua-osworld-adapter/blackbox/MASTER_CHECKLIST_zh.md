@@ -16,6 +16,7 @@
 - 真实 VM 工具矩阵、连续多任务稳定性、失败分类、小批量真实 CUA 回归和 P6 兼容性检查入口已经完成。
 - CUA 本机路径、配置、版本和 timeout 默认值已收敛到仓库根目录 `.env`，代码不保留本机硬编码 CUA 路径。
 - `env.step()` 的 `WAIT` 和 `pyautogui` GUI 动作已通过真实 VM 独立验证。
+- `get_cursor_position` 已补充为低风险 CUA bridge tool，并通过本地 smoke 与真实 VM 单工具功能验证。
 - 本清单中 `[x]` 表示代码已落地且至少经过本地 smoke 或真实单任务闭环验证；`[ ]` 表示仍待专项验证或实现补强。
 
 ---
@@ -179,3 +180,5 @@ P6 验证记录：
 - 2026-05-02 `check_cua_blackbox_compatibility.py` 检查 CUA CLI、config、openclaw、回归 case 通过。
 - 2026-05-02 `cua_smoke_test.py` 本地 smoke `SMK-001` 到 `SMK-015` 全部通过。
 - 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_bridge_busy` 本地 smoke `SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。
+- 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_cursor` 本地 smoke `SMK-001` 到 `SMK-017` 全部通过。
+- 2026-05-02 `cua_bridge_vm_functional_test.py --tools get_cursor_position --result_dir ./results_cua_bridge_cursor_functional` 真实 VM 单工具功能测试通过。

@@ -162,6 +162,7 @@ env 负责：
 - `wait`
 - `app_open`
 - `get_screen_size`
+- `get_cursor_position`
 - `done`
 
 ## 6.2 第一阶段禁用
@@ -173,7 +174,6 @@ env 负责：
 - `read_record`
 - `wait_for_user`
 - `osascript_exec`
-- `get_cursor_position`
 
 ---
 

@@ -232,7 +232,8 @@
 - 2026-05-02 已新增 `scripts/python/check_cua_blackbox_compatibility.py`，覆盖 CUA CLI 契约、config/openclaw 存在性、hash 元数据和回归 case 静态检查。
 - 2026-05-02 已增强 `scripts/python/validate_cua_regression_cases.py`，检查 evaluator metric 和 getter 是否存在，并可输出 JSON report。
 - 2026-05-02 已执行 CUA 兼容性检查，`cua --help`、`cua run --help`、回归 case 静态检查均通过。
-- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。
+- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-017` 全部通过，其中 `SMK-016` 覆盖 bridge busy，`SMK-017` 覆盖 `get_cursor_position`。
+- 2026-05-02 已执行真实 VM 单工具 functional，`TP-003a get_cursor_position` 通过。
 
 ---
 
@@ -243,6 +244,7 @@
 | TP-001 | 本地 smoke | bridge 协议、翻译、openclaw shim | `python3 scripts/python/cua_smoke_test.py` | 所有 SMK 项通过 |
 | TP-002 | VM functional | screenshot 返回有效图片 | 直接 bridge 请求 | 图片有 mime、width、height、base64 |
 | TP-003 | VM functional | screen size 返回真实 VM 尺寸 | 直接 bridge 请求 | width/height 与 runner 参数一致 |
+| TP-003a | VM functional | cursor position 返回真实 VM 光标坐标 | 直接 bridge 请求 | output 包含整数 x/y |
 | TP-004 | VM functional | click 生效 | 直接 bridge 请求 | 请求成功且截图可观察焦点变化 |
 | TP-005 | VM functional | double click 生效 | 直接 bridge 请求 | 请求成功且目标产生双击行为 |
 | TP-006 | VM functional | right click 生效 | 直接 bridge 请求 | 请求成功且上下文菜单或等效行为出现 |

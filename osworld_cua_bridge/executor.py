@@ -111,6 +111,8 @@ class CuaBridgeExecutor:
                     response = self._screenshot(req)
                 elif req.tool == "get_screen_size":
                     response = self._get_screen_size(req)
+                elif req.tool == "get_cursor_position":
+                    response = self._get_cursor_position(req)
                 elif req.tool == "done":
                     response = self._done(req)
                 else:
@@ -183,6 +185,40 @@ class CuaBridgeExecutor:
                 "runId": req.run_id,
                 "reqId": req.req_id,
                 "output": json.dumps({"width": width, "height": height, "os": "linux", "dpr": 1}, ensure_ascii=False),
+            }
+        )
+
+    def _get_cursor_position(self, req: BridgeRequest) -> dict[str, Any]:
+        position = None
+        try:
+            if hasattr(self.env.controller, "get_cursor_position"):
+                position = self.env.controller.get_cursor_position()
+            else:
+                result = self.env.controller.execute_python_command(
+                    "import json, pyautogui; p = pyautogui.position(); print(json.dumps({'x': p.x, 'y': p.y}))"
+                )
+                if isinstance(result, dict) and result.get("output"):
+                    position = json.loads(str(result["output"]).strip())
+        except Exception:
+            logger.exception("failed to get cursor position from controller")
+
+        if isinstance(position, (list, tuple)) and len(position) >= 2:
+            position = {"x": position[0], "y": position[1]}
+        if not isinstance(position, dict):
+            return error("CURSOR_POSITION_FAILED", "invalid cursor position", {"position": position})
+        try:
+            x = int(position["x"])
+            y = int(position["y"])
+        except Exception:
+            return error("CURSOR_POSITION_FAILED", "invalid cursor position", {"position": position})
+
+        return ok(
+            {
+                "type": "tool_result",
+                "tool": req.tool,
+                "runId": req.run_id,
+                "reqId": req.req_id,
+                "output": json.dumps({"x": x, "y": y}, ensure_ascii=False),
             }
         )
 

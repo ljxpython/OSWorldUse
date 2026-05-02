@@ -51,6 +51,9 @@ class FakeController:
     def get_vm_screen_size(self) -> dict[str, int]:
         return {"width": 1920, "height": 1080}
 
+    def get_cursor_position(self) -> dict[str, int]:
+        return {"x": 960, "y": 540}
+
     def execute_python_command(self, command: str) -> dict[str, Any]:
         self.commands.append(command)
         return {"returncode": 0, "output": "ok", "error": ""}
@@ -174,6 +177,10 @@ def check_bridge_protocol(result_dir: str) -> None:
     size = _assert_ok(_request(executor, "size-001", "get_screen_size"))
     assert '"width": 1920' in size["output"]
     assert '"height": 1080' in size["output"]
+
+    cursor = _assert_ok(_request(executor, "cursor-001", "get_cursor_position"))
+    assert '"x": 960' in cursor["output"]
+    assert '"y": 540' in cursor["output"]
 
     bad = executor.handle_payload({"runId": RUN_ID, "tool": "mouse_click", "args": {}})
     assert bad["ok"] is False
@@ -590,6 +597,7 @@ def main() -> int:
         run_check("SMK-014", "summary rebuild cli and failure rollup", lambda: check_summary_rebuild_cli(result_dir)),
         run_check("SMK-015", "app_open linux strategy", lambda: check_app_open_linux_strategy(result_dir)),
         run_check("SMK-016", "bridge busy error classification", lambda: check_bridge_busy(result_dir)),
+        run_check("SMK-017", "get_cursor_position bridge tool", lambda: check_bridge_protocol(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)

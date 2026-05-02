@@ -35,6 +35,10 @@
   `SMK-001` 到 `SMK-015` 全部通过。
 - `results_cua_smoke_bridge_busy/cua_smoke_report.json`
   `SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。
+- `results_cua_smoke_cursor/cua_smoke_report.json`
+  `SMK-001` 到 `SMK-017` 全部通过，其中 `SMK-017` 覆盖 `get_cursor_position`。
+- `results_cua_bridge_cursor_functional/functional_report.json`
+  `TP-003a get_cursor_position` 真实 VM 单工具功能测试通过。
 
 ## 4. 当前不通过或暂缓项
 

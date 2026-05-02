@@ -50,6 +50,7 @@ Smoke test 的目标不是追求高分，而是确认：
 | `SMK-014` | Hard | summary 重建 | 已有 result_dir | 重新生成 summary | failure summary 可重建。 |
 | `SMK-015` | Hard | `app_open` Linux 策略 | 假 controller | 生成 app 打开命令 | 按 CUA Linux 策略尝试 gtk/gio/xdg/可执行文件。 |
 | `SMK-016` | Hard | bridge busy | 并发 bridge 请求 | 第二个请求命中 busy | 返回 `BUSY` 且记录 `bridge_busy`。 |
+| `SMK-017` | Hard | 光标位置 | bridge 请求 `get_cursor_position` | 返回 cursor JSON | 输出包含整数 `x` / `y`。 |
 
 ---
 
@@ -71,6 +72,7 @@ Smoke test 的目标不是追求高分，而是确认：
 - `SMK-014`
 - `SMK-015`
 - `SMK-016`
+- `SMK-017`
 
 `SMK-010` 和 `SMK-011` 建议通过。
 
@@ -86,7 +88,7 @@ python3 scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke
 
 覆盖范围：
 
-- 覆盖 `SMK-001` 到 `SMK-008`、`SMK-012` 到 `SMK-016` 的本地协议、动作翻译、汇总、`app_open` 和 busy 错误链路。
+- 覆盖 `SMK-001` 到 `SMK-008`、`SMK-012` 到 `SMK-017` 的本地协议、动作翻译、汇总、`app_open`、busy 和 cursor 工具链路。
 - 不覆盖 `SMK-009` 的真实 benchmark 闭环；`SMK-009` 仍需要用 `run_multienv_cua.py` 或 `run_multienv_cua_blackbox.py` 在真实 VM 上跑一个最小 task。
 - 报告落盘到 `results_cua_smoke/cua_smoke_report.json`。
 
