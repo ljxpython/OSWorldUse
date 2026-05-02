@@ -232,7 +232,7 @@
 - 2026-05-02 已新增 `scripts/python/check_cua_blackbox_compatibility.py`，覆盖 CUA CLI 契约、config/openclaw 存在性、hash 元数据和回归 case 静态检查。
 - 2026-05-02 已增强 `scripts/python/validate_cua_regression_cases.py`，检查 evaluator metric 和 getter 是否存在，并可输出 JSON report。
 - 2026-05-02 已执行 CUA 兼容性检查，`cua --help`、`cua run --help`、回归 case 静态检查均通过。
-- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-018` 全部通过，其中 `SMK-016` 覆盖 bridge busy，`SMK-017` 覆盖 `get_cursor_position`，`SMK-018` 覆盖统一报告生成器。
+- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-019` 全部通过，其中 `SMK-016` 覆盖 bridge busy，`SMK-017` 覆盖 `get_cursor_position`，`SMK-018` 覆盖统一报告生成器，`SMK-019` 覆盖只读 Web report server 辅助逻辑。
 - 2026-05-02 已执行真实 VM 单工具 functional，`TP-003a get_cursor_position` 通过。
 
 ---
@@ -258,13 +258,14 @@
 - 保留 `evaluation_examples/test_cua_regression.json` 兼容入口。
 - 新增 `scripts/python/build_cua_blackbox_report.py`。
 - 输出 `report/report.json`、`report/report.md`、`report/index.html`。
-- 后续再新增只读 Web 展示脚本。
+- 新增只读 Web 展示脚本。
 
 当前实现状态：
 
 - 2026-05-02 已新增 `evaluation_examples/cua_blackbox/`，并保留旧路径兼容。
 - 2026-05-02 已新增 `scripts/python/build_cua_blackbox_report.py`，支持生成 JSON、Markdown、HTML 三种报告。
 - 2026-05-02 已支持 `run_multienv_cua_blackbox.py --build_report` 和 `build_cua_blackbox_summary.py --build_report` 可选生成报告。
+- 2026-05-02 已新增 `scripts/python/serve_cua_blackbox_report.py`，支持只读 Web 查看、多个 result root、前端过滤和 artifact root 限制。
 
 通过标准：
 
@@ -407,6 +408,16 @@ uv run python scripts/python/build_cua_blackbox_summary.py \
   --result_root <result-root> \
   --build_report
 ```
+
+只读 Web 展示：
+
+```bash
+uv run python scripts/python/serve_cua_blackbox_report.py \
+  --result_root <result-root> \
+  --open_browser
+```
+
+多个结果目录可以重复传 `--result_root`，或用 `--results_dir <dir>` 扫描目录下的 `report/report.json`。
 
 ---
 

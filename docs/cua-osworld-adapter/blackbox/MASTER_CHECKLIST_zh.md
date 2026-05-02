@@ -184,7 +184,8 @@
 - [x] 输出 `report/report.md`
 - [x] 输出 `report/index.html`
 - [x] 支持 runner / summary CLI 通过 `--build_report` 可选生成报告
-- [ ] 后续新增 Web 展示脚本
+- [x] 后续新增 Web 展示脚本
+- [x] Web 展示保持只读，只暴露 `result_root` 内 artifacts
 
 P5 并行验证记录：
 
@@ -200,4 +201,5 @@ P6 验证记录：
 - 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_bridge_busy` 本地 smoke `SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。
 - 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_cursor` 本地 smoke `SMK-001` 到 `SMK-017` 全部通过。
 - 2026-05-02 `cua_smoke_test.py --result_dir /tmp/osworld_cua_smoke_with_report` 本地 smoke `SMK-001` 到 `SMK-018` 全部通过，其中 `SMK-018` 覆盖统一报告生成器。
+- 2026-05-02 `cua_smoke_test.py --result_dir /tmp/osworld_cua_smoke_web_report` 本地 smoke `SMK-001` 到 `SMK-019` 全部通过，其中 `SMK-019` 覆盖只读 Web report server 辅助逻辑。
 - 2026-05-02 `cua_bridge_vm_functional_test.py --tools get_cursor_position --result_dir ./results_cua_bridge_cursor_functional` 真实 VM 单工具功能测试通过。

@@ -131,6 +131,13 @@ CUA 接入回归 case：
 
 短期内两个路径应保持内容一致，直到脚本默认路径全部迁移完成。
 
+CUA 专用 case 示例：
+
+- case：`evaluation_examples/cua_blackbox/cases/chrome/cua-demo-open-downloads.json`
+- suite：`evaluation_examples/cua_blackbox/suites/demo_custom_case.json`
+
+该示例不进入默认 regression suite，只用于说明未来新增 CUA 专用 case 的放置方式和验证方式。
+
 当前已固定的小批量回归集合：
 
 - `chrome/030eeff7-b492-4218-b312-701ec99ee0cc`
@@ -198,6 +205,13 @@ CUA 接入回归 case：
 uv run python scripts/python/validate_cua_regression_cases.py \
   --meta_path evaluation_examples/cua_blackbox/suites/regression.json \
   --report_path ./results_cua_case_validation/report.json
+```
+
+验证 CUA 专用 case 示例：
+
+```bash
+uv run python scripts/python/validate_cua_regression_cases.py \
+  --meta_path evaluation_examples/cua_blackbox/suites/demo_custom_case.json
 ```
 
 也可以使用统一 case 验收入口的默认静态模式：

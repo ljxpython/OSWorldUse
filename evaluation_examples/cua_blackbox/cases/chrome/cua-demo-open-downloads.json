@@ -1,0 +1,48 @@
+{
+  "id": "cua-demo-open-downloads",
+  "snapshot": "chrome",
+  "instruction": "Open Chrome's downloads page. Navigate to chrome://downloads and stop there.",
+  "source": "cua_blackbox_demo_case",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "is_expected_active_tab_approximate",
+    "result": {
+      "type": "active_url_from_accessTree",
+      "goto_prefix": ""
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "type": "url",
+        "url": "chrome://downloads/"
+      }
+    }
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

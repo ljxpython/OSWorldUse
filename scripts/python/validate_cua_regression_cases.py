@@ -12,9 +12,11 @@ sys.path.insert(0, ROOT_DIR)
 
 from desktop_env.evaluators import getters, metrics
 from scripts.python.cua_blackbox_defaults import (
+    CUA_BLACKBOX_CASES_DIR,
     DEFAULT_CASES_DIR,
     default_cua_regression_meta_path,
 )
+from scripts.python.cua_case_resolver import resolve_case_path
 
 DEFAULT_META_PATH = default_cua_regression_meta_path()
 
@@ -23,6 +25,7 @@ def config() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate the fixed CUA blackbox regression task set")
     parser.add_argument("--meta_path", type=str, default=DEFAULT_META_PATH)
     parser.add_argument("--cases_dir", type=str, default=DEFAULT_CASES_DIR)
+    parser.add_argument("--cua_cases_dir", type=str, default=CUA_BLACKBOX_CASES_DIR)
     parser.add_argument("--report_path", type=str, default=None)
     return parser.parse_args()
 
@@ -126,14 +129,18 @@ def _getter_exists(getter_type: str) -> bool:
     return hasattr(getters, getter_name)
 
 
-def validate_cases(meta_path: str, cases_dir: str) -> tuple[list[dict[str, str]], list[str]]:
+def validate_cases(
+    meta_path: str,
+    cases_dir: str,
+    cua_cases_dir: str | None = None,
+) -> tuple[list[dict[str, str]], list[str]]:
     meta = _validate_meta(_load_json(meta_path))
     rows: list[dict[str, str]] = []
     errors: list[str] = []
 
     for domain in sorted(meta):
         for case_id in meta[domain]:
-            case_path = os.path.join(cases_dir, domain, f"{case_id}.json")
+            case_path = resolve_case_path(domain, case_id, cases_dir=cases_dir, cua_cases_dir=cua_cases_dir)
             if not os.path.exists(case_path):
                 errors.append(f"{domain}/{case_id}: case file not found: {case_path}")
                 continue
@@ -161,11 +168,13 @@ def main() -> int:
     args = config()
     meta_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.meta_path)))
     cases_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cases_dir)))
+    cua_cases_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cua_cases_dir)))
 
-    rows, errors = validate_cases(meta_path, cases_dir)
+    rows, errors = validate_cases(meta_path, cases_dir, cua_cases_dir)
     report = {
         "meta_path": meta_path,
         "cases_dir": cases_dir,
+        "cua_cases_dir": cua_cases_dir,
         "task_count": len(rows),
         "rows": rows,
         "errors": errors,
@@ -179,6 +188,7 @@ def main() -> int:
 
     print(f"meta_path: {meta_path}")
     print(f"cases_dir: {cases_dir}")
+    print(f"cua_cases_dir: {cua_cases_dir}")
     print(f"task_count: {len(rows)}")
     for row in rows:
         print(f"- {row['domain']}/{row['id']} [{row['snapshot']}] {row['instruction']}")

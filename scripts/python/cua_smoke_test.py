@@ -25,6 +25,7 @@ from osworld_cua_bridge.reporting import build_blackbox_summary
 from osworld_cua_bridge.server import BridgeServer
 from osworld_cua_bridge.tool_translator import map_args_to_screen, translate_tool_to_pyautogui
 from scripts.python.build_cua_blackbox_report import build_report, write_outputs
+from scripts.python.serve_cua_blackbox_report import _safe_artifact_path, discover_reports
 
 
 RUN_ID = "cua-smoke-local"
@@ -606,6 +607,35 @@ def check_report_generation(result_dir: str) -> None:
     assert os.path.exists(paths["index_html"])
 
 
+def check_report_server_helpers(result_dir: str) -> None:
+    result_root, task_set, meta_path = _prepare_summary_fixture(result_dir)
+    build_blackbox_summary(result_root, task_set=task_set, task_set_path=meta_path, metadata={})
+    report_args = SimpleNamespace(
+        result_root=result_root,
+        result_dir=result_dir,
+        action_space="pyautogui",
+        observation_type="screenshot",
+        model="cua-smoke",
+        output_dir=os.path.join(result_root, "report"),
+        title="CUA Smoke Report",
+        smoke_report="",
+        functional_report="",
+        compatibility_report="",
+        case_acceptance_report="",
+    )
+    paths = write_outputs(build_report(report_args))
+    server_args = SimpleNamespace(
+        result_root=[result_root],
+        results_dir=[],
+        scan_depth=5,
+    )
+    refs = discover_reports(server_args)
+    assert len(refs) == 1
+    assert refs[0].report_path == paths["report_json"]
+    assert _safe_artifact_path(refs[0], paths["report_json"]) == paths["report_json"]
+    assert _safe_artifact_path(refs[0], "/etc/passwd") is None
+
+
 def run_check(check_id: str, name: str, fn: Callable[[], None]) -> CheckResult:
     try:
         fn()
@@ -641,6 +671,7 @@ def main() -> int:
         run_check("SMK-016", "bridge busy error classification", lambda: check_bridge_busy(result_dir)),
         run_check("SMK-017", "get_cursor_position bridge tool", lambda: check_bridge_protocol(result_dir)),
         run_check("SMK-018", "unified blackbox report generation", lambda: check_report_generation(result_dir)),
+        run_check("SMK-019", "read-only report server helpers", lambda: check_report_server_helpers(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)

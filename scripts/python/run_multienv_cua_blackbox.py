@@ -18,6 +18,8 @@ import lib_run_single
 from osworld_cua_bridge.failures import RECORDING_FAILED, UNKNOWN_ERROR, read_failure_summary, write_failure
 from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
 from osworld_cua_bridge.reporting import blackbox_result_root, build_blackbox_summary, summary_metadata_from_args
+from scripts.python.cua_blackbox_defaults import CUA_BLACKBOX_CASES_DIR
+from scripts.python.cua_case_resolver import resolve_case_path
 from scripts.python.build_cua_blackbox_report import build_report, write_outputs
 
 
@@ -52,6 +54,7 @@ def config() -> argparse.Namespace:
     parser.add_argument("--settle_sleep", type=float, default=20)
 
     parser.add_argument("--test_config_base_dir", type=str, default="evaluation_examples")
+    parser.add_argument("--cua_cases_dir", type=str, default=CUA_BLACKBOX_CASES_DIR)
     parser.add_argument("--domain", type=str, default="all")
     parser.add_argument("--example_id", type=str, default=None, help="Run a single example id within the selected domain or all domains")
     parser.add_argument("--test_all_meta_path", type=str, default="evaluation_examples/test_all.json")
@@ -189,7 +192,12 @@ def run_env_tasks(task_queue, args: argparse.Namespace, shared_scores: list):
                 break
 
             try:
-                config_file = os.path.join(args.test_config_base_dir, f"examples/{domain}/{example_id}.json")
+                config_file = resolve_case_path(
+                    domain,
+                    example_id,
+                    cases_dir=os.path.join(args.test_config_base_dir, "examples"),
+                    cua_cases_dir=args.cua_cases_dir,
+                )
                 with open(config_file, "r", encoding="utf-8") as file:
                     example = json.load(file)
                 logger.info("[%s][Domain]: %s", current_process().name, domain)

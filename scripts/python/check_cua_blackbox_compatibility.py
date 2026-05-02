@@ -15,6 +15,7 @@ sys.path.insert(0, ROOT_DIR)
 
 from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH, resolve_cua_command
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
+from scripts.python.cua_blackbox_defaults import CUA_BLACKBOX_CASES_DIR
 from scripts.python.validate_cua_regression_cases import DEFAULT_CASES_DIR, DEFAULT_META_PATH, validate_cases
 
 
@@ -38,6 +39,7 @@ def config() -> argparse.Namespace:
     parser.add_argument("--cua_version", type=str, default=_env_str("OSWORLD_CUA_VERSION"))
     parser.add_argument("--meta_path", type=str, default=DEFAULT_META_PATH)
     parser.add_argument("--cases_dir", type=str, default=DEFAULT_CASES_DIR)
+    parser.add_argument("--cua_cases_dir", type=str, default=CUA_BLACKBOX_CASES_DIR)
     parser.add_argument("--openclaw_bin", type=str, default=_env_str("OSWORLD_OPENCLAW_BIN", os.path.join(ROOT_DIR, "osworld_cua_bridge", "bin", "openclaw")))
     parser.add_argument("--result_dir", type=str, default="./results_cua_compatibility")
     parser.add_argument("--timeout_seconds", type=float, default=20)
@@ -119,6 +121,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     config_path = _abs_path(args.cua_config_path)
     meta_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.meta_path)))
     cases_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cases_dir)))
+    cua_cases_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cua_cases_dir)))
     openclaw_bin = _abs_path(args.openclaw_bin)
     cua_command = resolve_cua_command(args.cua_bin)
     cua_binary_path = _command_binary_path(cua_command)
@@ -128,12 +131,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     checks.append(_check("openclaw_exists", os.path.isfile(openclaw_bin), {"path": openclaw_bin}))
     checks.append(_check("cua_binary_resolved", bool(cua_binary_path), {"command": cua_command, "binary_path": cua_binary_path}))
 
-    rows, case_errors = validate_cases(meta_path, cases_dir)
+    rows, case_errors = validate_cases(meta_path, cases_dir, cua_cases_dir)
     checks.append(
         _check(
             "regression_cases_static",
             not case_errors,
-            {"meta_path": meta_path, "cases_dir": cases_dir, "task_count": len(rows), "errors": case_errors},
+            {"meta_path": meta_path, "cases_dir": cases_dir, "cua_cases_dir": cua_cases_dir, "task_count": len(rows), "errors": case_errors},
         )
     )
 
@@ -176,6 +179,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "meta_path": meta_path,
         "meta_sha256": _sha256(meta_path),
         "cases_dir": cases_dir,
+        "cua_cases_dir": cua_cases_dir,
         "checks": checks,
         "cli_results": cli_results,
         "passed": all(check["passed"] for check in checks),

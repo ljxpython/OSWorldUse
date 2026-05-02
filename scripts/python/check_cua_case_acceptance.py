@@ -13,12 +13,15 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
 from scripts.python.validate_cua_regression_cases import DEFAULT_CASES_DIR, DEFAULT_META_PATH, validate_cases
+from scripts.python.cua_blackbox_defaults import CUA_BLACKBOX_CASES_DIR
+from scripts.python.cua_case_resolver import resolve_case_path
 
 
 def config() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run staged acceptance checks for new CUA blackbox evaluation cases")
     parser.add_argument("--meta_path", type=str, default=DEFAULT_META_PATH)
     parser.add_argument("--cases_dir", type=str, default=DEFAULT_CASES_DIR)
+    parser.add_argument("--cua_cases_dir", type=str, default=CUA_BLACKBOX_CASES_DIR)
     parser.add_argument("--result_dir", type=str, default="./results_cua_case_acceptance")
     parser.add_argument("--domain", type=str, default=None, help="Limit checks to one domain in the meta file")
     parser.add_argument("--example_id", type=str, default=None, help="Limit checks to one example id")
@@ -60,8 +63,8 @@ def _filter_rows(rows: list[dict[str, str]], domain: str | None, example_id: str
     return filtered
 
 
-def _case_path(cases_dir: str, domain: str, case_id: str) -> str:
-    return os.path.join(cases_dir, domain, f"{case_id}.json")
+def _case_path(cases_dir: str, cua_cases_dir: str, domain: str, case_id: str) -> str:
+    return resolve_case_path(domain, case_id, cases_dir=cases_dir, cua_cases_dir=cua_cases_dir)
 
 
 def _snapshot_name(provider_name: str, screen_width: int, screen_height: int) -> str:
@@ -98,7 +101,7 @@ def _run_env_checks(args: argparse.Namespace, rows: list[dict[str, str]], cases_
         for row in rows:
             domain = row["domain"]
             case_id = row["id"]
-            case = _load_json(_case_path(cases_dir, domain, case_id))
+            case = _load_json(_case_path(cases_dir, args.cua_cases_dir, domain, case_id))
             record: dict[str, Any] = {
                 "domain": domain,
                 "id": case_id,
@@ -142,6 +145,8 @@ def _run_blackbox_case(args: argparse.Namespace, row: dict[str, str]) -> dict[st
         "screenshot",
         "--test_all_meta_path",
         os.path.abspath(os.path.expanduser(os.path.expandvars(args.meta_path))),
+        "--cua_cases_dir",
+        os.path.abspath(os.path.expanduser(os.path.expandvars(args.cua_cases_dir))),
         "--domain",
         row["domain"],
         "--example_id",
@@ -189,8 +194,9 @@ def main() -> int:
     result_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.result_dir)))
     meta_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.meta_path)))
     cases_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cases_dir)))
+    args.cua_cases_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.cua_cases_dir)))
 
-    rows, static_errors = validate_cases(meta_path, cases_dir)
+    rows, static_errors = validate_cases(meta_path, cases_dir, args.cua_cases_dir)
     selected_rows = _filter_rows(rows, args.domain, args.example_id)
     selection_errors: list[str] = []
     if not selected_rows:
@@ -209,6 +215,7 @@ def main() -> int:
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "meta_path": meta_path,
         "cases_dir": cases_dir,
+        "cua_cases_dir": args.cua_cases_dir,
         "selected_count": len(selected_rows),
         "selected_cases": selected_rows,
         "checks_requested": {

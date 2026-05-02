@@ -14,6 +14,7 @@
 - `scripts/python/run_multienv_cua_blackbox.py`
 - `scripts/python/build_cua_blackbox_summary.py`
 - `scripts/python/build_cua_blackbox_report.py`
+- `scripts/python/serve_cua_blackbox_report.py`
 - `scripts/python/run_cua_blackbox_regression.py`
 - `scripts/python/validate_cua_regression_cases.py`
 - `scripts/python/check_cua_case_acceptance.py`
@@ -55,6 +56,16 @@ uv run python scripts/python/build_cua_blackbox_report.py \
 - `report/report.json`
 - `report/report.md`
 - `report/index.html`
+
+需要 Web 方式查看时，可以执行：
+
+```bash
+uv run python scripts/python/serve_cua_blackbox_report.py \
+  --result_root <result-root> \
+  --open_browser
+```
+
+Web 展示是只读模式，只暴露 `result_root` 内的 artifacts。
 
 当前 Mac 本地阶段验收范围：
 

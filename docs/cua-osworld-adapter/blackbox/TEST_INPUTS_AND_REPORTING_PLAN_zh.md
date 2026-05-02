@@ -59,7 +59,7 @@ evaluation_examples/cua_blackbox/
 - 已有 OSWorld case 不复制到 `evaluation_examples/cua_blackbox/`。
 - 新增通用 benchmark case 仍放到 `evaluation_examples/examples/<domain>/`。
 - 新增 CUA blackbox 专用 case 可以放到 `evaluation_examples/cua_blackbox/cases/<domain>/<case_id>.json`。
-- 第一阶段 suite 先复用现有 case；后续如果要让 runner 直接读取 `cua_blackbox/cases/`，需要补 case resolver 和 validation 支持。
+- runner 和 validation 会优先读取 `evaluation_examples/examples/`，找不到时再读取 `evaluation_examples/cua_blackbox/cases/`。
 
 ### 2.3 兼容策略
 
@@ -188,11 +188,11 @@ scripts/python/serve_cua_blackbox_report.py
 
 ### 5.3 Web 展示
 
-- [ ] 等 `report.json` 稳定后，再设计 `serve_cua_blackbox_report.py`
-- [ ] 支持本地浏览器查看报告
-- [ ] 支持多个 result root 切换
-- [ ] 支持按 domain / task / failure type 过滤
-- [ ] 保持只读，不修改评测结果目录
+- [x] 等 `report.json` 稳定后，再设计 `serve_cua_blackbox_report.py`
+- [x] 支持本地浏览器查看报告
+- [x] 支持多个 result root 切换
+- [x] 支持按 domain / task / failure type 过滤
+- [x] 保持只读，不修改评测结果目录
 
 ---
 
