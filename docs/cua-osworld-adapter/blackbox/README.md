@@ -12,7 +12,21 @@
 
 - `osworld_cua_bridge/`
 - `scripts/python/run_multienv_cua_blackbox.py`
+- `scripts/python/build_cua_blackbox_summary.py`
+- `scripts/python/run_cua_blackbox_regression.py`
+- `scripts/python/validate_cua_regression_cases.py`
 - `lib_run_single.run_single_example_cua_blackbox()`
+
+当前固定回归集合：
+
+- `evaluation_examples/test_cua_regression.json`
+
+当前批量评测会在结果根目录自动生成：
+
+- `summary/summary.json`
+- `summary/summary.csv`
+- `summary/domain_summary.json`
+- `summary/failure_summary.json`
 
 当前文档包括：
 

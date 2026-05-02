@@ -121,6 +121,19 @@ CUA 接入回归 case：
 - 建议 meta 文件命名为 `evaluation_examples/test_cua_regression.json`。
 - 不应污染正式 benchmark 统计，除非 case 已被确认是通用任务。
 
+当前已固定的小批量回归集合：
+
+- `chrome/030eeff7-b492-4218-b312-701ec99ee0cc`
+  启用 Chrome `Do Not Track`
+- `chrome/2ad9387a-65d8-4e33-ad5b-7580065a27ca`
+  创建书签栏文件夹 `Favorites`
+- `chrome/bb5e4c0d-f964-439c-97b6-bdb9747de3f4`
+  把默认搜索引擎改成 Bing
+- `chrome/12086550-11c0-466b-b367-1d9e75b3910e`
+  导航到密码管理页面
+- `libreoffice_writer/4bcb1253-a636-4df4-8cb0-a35c04dfef31`
+  导出当前文档为 PDF
+
 ## 4.3 Case JSON 最小骨架
 
 ```json

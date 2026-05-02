@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import csv
 import json
 import os
 import subprocess
@@ -16,9 +17,10 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
 from osworld_cua_bridge.executor import CuaBridgeExecutor
-from osworld_cua_bridge.failures import CUA_START_FAILED, CUA_TIMEOUT, EVALUATE_FAILED, read_failure_summary
+from osworld_cua_bridge.failures import CUA_START_FAILED, CUA_TIMEOUT, EVALUATE_FAILED, read_failure_summary, write_failure
 from osworld_cua_bridge.launcher import run_cua_blackbox
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
+from osworld_cua_bridge.reporting import build_blackbox_summary
 from osworld_cua_bridge.server import BridgeServer
 from osworld_cua_bridge.tool_translator import map_args_to_screen, translate_tool_to_pyautogui
 
@@ -362,6 +364,133 @@ def check_evaluate_failure_classification(result_dir: str) -> None:
     assert cua_meta["failure_type"] == EVALUATE_FAILED
 
 
+def _prepare_summary_fixture(result_dir: str) -> tuple[str, dict[str, list[str]], str]:
+    result_root = os.path.join(result_dir, "summary_fixture")
+    task_set = {
+        "browser": ["task-success", "task-timeout"],
+        "office": ["task-pending"],
+    }
+    args_json = {
+        "result_dir": result_dir,
+        "action_space": "pyautogui",
+        "observation_type": "screenshot",
+        "model": "cua-smoke",
+        "adapter_version": "blackbox-v1",
+        "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
+        "eval_profile": "ubuntu-cua-local-smoke-v1",
+        "cua_version": "local-smoke",
+        "num_envs": 1,
+        "max_steps": 1,
+    }
+
+    os.makedirs(result_root, exist_ok=True)
+    with open(os.path.join(result_root, "args.json"), "w", encoding="utf-8") as file:
+        json.dump(args_json, file, indent=2, ensure_ascii=False)
+
+    meta_path = os.path.join(result_root, "test_all.json")
+    with open(meta_path, "w", encoding="utf-8") as file:
+        json.dump(task_set, file, indent=2, ensure_ascii=False)
+
+    success_dir = os.path.join(result_root, "browser", "task-success")
+    failed_dir = os.path.join(result_root, "browser", "task-timeout")
+    os.makedirs(success_dir, exist_ok=True)
+    os.makedirs(failed_dir, exist_ok=True)
+
+    with open(os.path.join(success_dir, "result.txt"), "w", encoding="utf-8") as file:
+        file.write("1.0\n")
+    with open(os.path.join(success_dir, "runtime.log"), "w", encoding="utf-8") as file:
+        file.write("ok\n")
+    with open(os.path.join(success_dir, "cua_meta.json"), "w", encoding="utf-8") as file:
+        json.dump({"exit_code": 0}, file, indent=2, ensure_ascii=False)
+
+    write_failure(
+        failed_dir,
+        CUA_TIMEOUT,
+        "synthetic timeout",
+        stage="cua_process",
+        details={"source": "smoke"},
+    )
+    with open(os.path.join(failed_dir, "runtime.log"), "w", encoding="utf-8") as file:
+        file.write("timeout\n")
+
+    return result_root, task_set, meta_path
+
+
+def check_summary_totals(result_dir: str) -> None:
+    result_root, task_set, meta_path = _prepare_summary_fixture(result_dir)
+    summary = build_blackbox_summary(
+        result_root,
+        task_set=task_set,
+        task_set_path=meta_path,
+        metadata={
+            "model": "cua-smoke",
+            "adapter_version": "blackbox-v1",
+            "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
+            "eval_profile": "ubuntu-cua-local-smoke-v1",
+            "cua_version": "local-smoke",
+        },
+    )
+    totals = summary["totals"]
+    assert totals["total_tasks"] == 3
+    assert totals["scored_tasks"] == 1
+    assert totals["failed_tasks"] == 1
+    assert totals["pending_tasks"] == 1
+    assert totals["tasks_with_failure_metadata"] == 1
+    assert totals["nonzero_score_tasks"] == 1
+    assert totals["average_score"] == 1.0
+
+    with open(os.path.join(result_root, "summary", "summary.json"), encoding="utf-8") as file:
+        payload = json.load(file)
+    assert payload["metadata"]["cua_version"] == "local-smoke"
+    assert payload["task_set_path"] == meta_path
+
+
+def check_summary_domain_and_csv(result_dir: str) -> None:
+    result_root, task_set, meta_path = _prepare_summary_fixture(result_dir)
+    build_blackbox_summary(result_root, task_set=task_set, task_set_path=meta_path, metadata={})
+
+    with open(os.path.join(result_root, "summary", "domain_summary.json"), encoding="utf-8") as file:
+        domains = json.load(file)
+    assert domains["browser"]["total_tasks"] == 2
+    assert domains["browser"]["scored_tasks"] == 1
+    assert domains["browser"]["failed_tasks"] == 1
+    assert domains["browser"]["average_score"] == 1.0
+    assert domains["office"]["pending_tasks"] == 1
+
+    with open(os.path.join(result_root, "summary", "summary.csv"), encoding="utf-8", newline="") as file:
+        rows = list(csv.DictReader(file))
+    assert len(rows) == 3
+    office_pending = next(row for row in rows if row["domain"] == "office" and row["task_id"] == "task-pending")
+    assert office_pending["status"] == "pending"
+
+
+def check_summary_rebuild_cli(result_dir: str) -> None:
+    result_root, _, meta_path = _prepare_summary_fixture(result_dir)
+    proc = subprocess.run(
+        [
+            sys.executable,
+            os.path.join(ROOT_DIR, "scripts", "python", "build_cua_blackbox_summary.py"),
+            "--result_root",
+            result_root,
+            "--test_all_meta_path",
+            meta_path,
+        ],
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    assert "summary_dir:" in proc.stdout
+
+    with open(os.path.join(result_root, "summary", "failure_summary.json"), encoding="utf-8") as file:
+        failures = json.load(file)
+    timeout_bucket = failures["by_failure_type"][CUA_TIMEOUT]
+    assert failures["failure_type_count"] == 1
+    assert timeout_bucket["count"] == 1
+    assert timeout_bucket["domains"] == ["browser"]
+    assert timeout_bucket["statuses"]["failed"] == 1
+
+
 def run_check(check_id: str, name: str, fn: Callable[[], None]) -> CheckResult:
     try:
         fn()
@@ -390,6 +519,9 @@ def main() -> int:
         run_check("SMK-009", "launcher failure classification", lambda: check_launcher_failure_classification(result_dir)),
         run_check("SMK-010", "launcher timeout classification", lambda: check_launcher_timeout_classification(result_dir)),
         run_check("SMK-011", "evaluate failure classification", lambda: check_evaluate_failure_classification(result_dir)),
+        run_check("SMK-012", "summary totals and metadata", lambda: check_summary_totals(result_dir)),
+        run_check("SMK-013", "summary domain and csv outputs", lambda: check_summary_domain_and_csv(result_dir)),
+        run_check("SMK-014", "summary rebuild cli and failure rollup", lambda: check_summary_rebuild_cli(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)

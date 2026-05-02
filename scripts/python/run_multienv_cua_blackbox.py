@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime
 import json
 import logging
@@ -16,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 import lib_run_single
 from osworld_cua_bridge.failures import RECORDING_FAILED, UNKNOWN_ERROR, read_failure_summary, write_failure
 from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
+from osworld_cua_bridge.reporting import blackbox_result_root, build_blackbox_summary, summary_metadata_from_args
 
 
 active_environments = []
@@ -289,6 +291,27 @@ def filter_examples(test_all_meta: dict, domain: str, example_id: str | None) ->
     return filtered
 
 
+def generate_summary(args: argparse.Namespace, selected_task_set: dict) -> dict:
+    result_root = blackbox_result_root(args)
+    summary = build_blackbox_summary(
+        result_root,
+        task_set=selected_task_set,
+        task_set_path=args.test_all_meta_path,
+        metadata=summary_metadata_from_args(args),
+    )
+    totals = summary["totals"]
+    logger.info(
+        "Summary generated at %s/summary: total=%d scored=%d failed=%d pending=%d avg=%.4f",
+        result_root,
+        totals["total_tasks"],
+        totals["scored_tasks"],
+        totals["failed_tasks"],
+        totals["pending_tasks"],
+        totals["average_score"],
+    )
+    return summary
+
+
 def test(args: argparse.Namespace, test_all_meta: dict) -> None:
     global processes
     logger.info("Args: %s", args)
@@ -337,7 +360,13 @@ if __name__ == "__main__":
 
     with open(args.test_all_meta_path, "r", encoding="utf-8") as file:
         test_all_meta = json.load(file)
-    test_all_meta = filter_examples(test_all_meta, args.domain, args.example_id)
-
-    test_file_list = get_unfinished(args.action_space, args.model, args.observation_type, args.result_dir, test_all_meta)
+    selected_task_set = filter_examples(test_all_meta, args.domain, args.example_id)
+    test_file_list = get_unfinished(
+        args.action_space,
+        args.model,
+        args.observation_type,
+        args.result_dir,
+        copy.deepcopy(selected_task_set),
+    )
     test(args, test_file_list)
+    generate_summary(args, selected_task_set)

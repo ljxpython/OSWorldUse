@@ -264,26 +264,33 @@
 
 ### 12.3 P3：批量评测汇总
 
-- [ ] 生成 `summary.json`
-- [ ] 生成 `summary.csv`
-- [ ] 生成 `domain_summary.json`
-- [ ] 生成 `failure_summary.json`
-- [ ] 支持从已有 `result_dir` 重建 summary
-- [ ] 跳过已完成任务时不重复计分
+- [x] 生成 `summary.json`
+- [x] 生成 `summary.csv`
+- [x] 生成 `domain_summary.json`
+- [x] 生成 `failure_summary.json`
+- [x] 支持从已有 `result_dir` 重建 summary
+- [x] 跳过已完成任务时不重复计分
 
 ### 12.4 P4：真实 CUA 小规模回归
 
-- [ ] 固定 3 到 5 个 Ubuntu benchmark task
-- [ ] 每个任务完整生成标准结果目录
-- [ ] 每个任务完整写入 `result.txt`
-- [ ] 每个任务保留 `recording.mp4`
-- [ ] 每个任务保留 CUA stdout / stderr
-- [ ] 每个失败任务有 `failure_type`
-- [ ] 小批量运行后生成 summary
+- [x] 固定 3 到 5 个 Ubuntu benchmark task
+- [x] 每个任务完整生成标准结果目录
+- [x] 每个任务完整写入 `result.txt`
+- [x] 每个任务保留 `recording.mp4`
+- [x] 每个任务保留 CUA stdout / stderr
+- [x] 每个失败任务有 `failure_type`
+- [x] 小批量运行后生成 summary
+
+验证记录：
+
+- 2026-05-02 执行 `evaluation_examples/test_cua_regression.json`，5 个任务全部跑到 `env.evaluate()`。
+- 结果目录：`results_cua_regression/pyautogui/screenshot/cua-blackbox-regression/`
+- summary：`total=5`，`scored=5`，`failed=0`，`pending=0`，`average_score=0.5995482928125415`。
+- 发现 1 条非阻断 bridge failure metadata：`bridge_unsupported_tool`，原因是 CUA 调用了首阶段禁用的 `app_open`。
 
 ### 12.5 P5：并行与长期稳定性
 
-- [ ] 串行连续 5 到 10 个任务不崩
+- [x] 串行连续 5 到 10 个任务不崩
 - [ ] 验证 `num_envs > 1` 不串 runId
 - [ ] 验证 `num_envs > 1` 不串 nodeId
 - [ ] 验证 bridge port 不冲突
@@ -294,7 +301,7 @@
 - [ ] 明确复用 OSWorld 原生 case 和 evaluator 的边界
 - [ ] 明确新增标准 benchmark case 的流程
 - [ ] 明确新增 CUA 回归 case 的流程
-- [ ] 建立或约定 `evaluation_examples/test_cua_regression.json`
+- [x] 建立或约定 `evaluation_examples/test_cua_regression.json`
 - [ ] 明确 CUA 外部 CLI 契约
 - [ ] 明确 CUA tool schema 兼容边界
 - [ ] CUA 升级时记录 `cua_version`
