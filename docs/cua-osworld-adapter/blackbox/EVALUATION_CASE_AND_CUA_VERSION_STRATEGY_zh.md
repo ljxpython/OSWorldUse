@@ -190,6 +190,14 @@ uv run python scripts/python/validate_cua_regression_cases.py \
   --report_path ./results_cua_case_validation/report.json
 ```
 
+也可以使用统一 case 验收入口的默认静态模式：
+
+```bash
+uv run python scripts/python/check_cua_case_acceptance.py \
+  --meta_path evaluation_examples/test_cua_regression.json \
+  --result_dir ./results_cua_case_acceptance_static
+```
+
 ## 5.2 Case 环境检查
 
 检查项：
@@ -198,6 +206,20 @@ uv run python scripts/python/validate_cua_regression_cases.py \
 - `config` 能完成初始状态准备。
 - `env._get_obs()` 能返回 screenshot。
 - `evaluator.postconfig` 不破坏任务结果。
+
+执行：
+
+```bash
+uv run python scripts/python/check_cua_case_acceptance.py \
+  --meta_path evaluation_examples/test_cua_regression.json \
+  --domain <domain> \
+  --example_id <case-id> \
+  --provider_name vmware \
+  --path_to_vm <path-to-vm> \
+  --headless \
+  --check_env_reset \
+  --result_dir ./results_cua_case_acceptance_env
+```
 
 ## 5.3 Case 评测检查
 
@@ -208,6 +230,8 @@ uv run python scripts/python/validate_cua_regression_cases.py \
 - 同一个 case 重复运行结果稳定。
 - evaluator 不依赖宿主机状态。
 
+当前脚本支持 `--check_initial_evaluate` 记录 reset 后初始分数；人工或脚本完成后的高分检查仍需要 case 作者提供可复现完成步骤，或者用 blackbox 单跑结果辅助判断。
+
 ## 5.4 CUA 接入检查
 
 检查项：
@@ -216,6 +240,21 @@ uv run python scripts/python/validate_cua_regression_cases.py \
 - 标准结果目录完整。
 - `result.txt`、`runtime.log`、`recording.mp4`、`cua_meta.json` 存在。
 - 失败时有 `failure_type` 或可定位日志。
+
+执行：
+
+```bash
+uv run python scripts/python/check_cua_case_acceptance.py \
+  --meta_path evaluation_examples/test_cua_regression.json \
+  --domain <domain> \
+  --example_id <case-id> \
+  --provider_name vmware \
+  --path_to_vm <path-to-vm> \
+  --headless \
+  --run_blackbox \
+  --blackbox_result_dir ./results_cua_case_acceptance_blackbox \
+  --result_dir ./results_cua_case_acceptance_blackbox_report
+```
 
 ---
 

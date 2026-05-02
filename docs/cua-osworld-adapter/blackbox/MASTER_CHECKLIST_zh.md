@@ -165,7 +165,7 @@
 - [x] `TP-025` 串行稳定性测试通过
 - [ ] `TP-026` 并行稳定性测试通过（当前本地只有一个 `.vmx`，未进入 CUA / bridge 阶段）
 - [x] `TP-027` 新增 case 静态检查入口通过
-- [ ] `TP-028` 到 `TP-030` 新增 case 环境/evaluator/blackbox 单跑检查通过（等待实际新增 case 时执行）
+- [x] `TP-028` 到 `TP-030` 新增 case 环境/evaluator/blackbox 单跑检查入口已建立（实际新增 case 时执行）
 - [x] `TP-031` 到 `TP-033` CUA CLI、配置、openclaw 兼容检查通过
 - [ ] `TP-034` CUA 小批量升级回归通过（等待实际 CUA 升级时执行）
 
@@ -177,6 +177,7 @@ P5 并行验证记录：
 P6 验证记录：
 
 - 2026-05-02 `validate_cua_regression_cases.py` 静态检查 5 个回归 case 通过。
+- 2026-05-02 `check_cua_case_acceptance.py` 默认静态模式检查 5 个回归 case 通过，并支持按 domain/example 过滤；`TP-028` 到 `TP-030` 的真实环境、evaluator、blackbox 单跑通过显式开关执行。
 - 2026-05-02 `check_cua_blackbox_compatibility.py` 检查 CUA CLI、config、openclaw、回归 case 通过。
 - 2026-05-02 `cua_smoke_test.py` 本地 smoke `SMK-001` 到 `SMK-015` 全部通过。
 - 2026-05-02 `cua_smoke_test.py --result_dir ./results_cua_smoke_bridge_busy` 本地 smoke `SMK-001` 到 `SMK-016` 全部通过，其中 `SMK-016` 覆盖 bridge busy 错误码和 `bridge_busy` 失败分类。

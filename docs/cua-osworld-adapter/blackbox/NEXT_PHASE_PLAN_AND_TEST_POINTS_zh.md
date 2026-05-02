@@ -268,10 +268,10 @@
 | TP-024 | regression | 真实 CUA 小批量 | 3 到 5 个 task | 可完成汇总且失败可定位 |
 | TP-025 | stability | 串行连续任务 | `num_envs=1` 多任务 | 不崩溃、不串目录、不串 runId |
 | TP-026 | stability | 并行任务预验收 | `num_envs>1`，且每个 worker 使用独立 VM 实例 | 不串 nodeId、runId、bridge port |
-| TP-027 | case | 新增 case 静态检查 | `validate_cua_regression_cases.py` | id、snapshot、instruction、evaluator 均有效 |
-| TP-028 | case | 新增 case 环境检查 | `env.reset()` + screenshot | reset/config/screenshot 正常 |
-| TP-029 | case | 新增 case evaluator 检查 | 人工或脚本完成前后 evaluate | 未完成低分，完成后高分 |
-| TP-030 | case | 新增 case blackbox 单跑 | `--domain` + `--example_id` | 标准结果目录完整 |
+| TP-027 | case | 新增 case 静态检查 | `validate_cua_regression_cases.py` 或 `check_cua_case_acceptance.py` 默认模式 | id、snapshot、instruction、evaluator 均有效 |
+| TP-028 | case | 新增 case 环境检查 | `check_cua_case_acceptance.py --check_env_reset` | reset/config/screenshot 正常 |
+| TP-029 | case | 新增 case evaluator 检查 | `check_cua_case_acceptance.py --check_initial_evaluate` + 人工/脚本完成后 evaluate | 未完成低分，完成后高分 |
+| TP-030 | case | 新增 case blackbox 单跑 | `check_cua_case_acceptance.py --run_blackbox` | 标准结果目录完整 |
 | TP-031 | version | CUA CLI 兼容检查 | `cua --help` / `cua run --help` | 必需 flag 仍存在 |
 | TP-032 | version | CUA 配置兼容检查 | `check_cua_blackbox_compatibility.py` | config 存在且 hash 可记录 |
 | TP-033 | version | CUA openclaw 兼容检查 | `check_cua_blackbox_compatibility.py` + smoke | openclaw shim 请求格式兼容 |
