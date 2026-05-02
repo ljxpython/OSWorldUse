@@ -15,6 +15,7 @@
 - `scripts/python/build_cua_blackbox_summary.py`
 - `scripts/python/run_cua_blackbox_regression.py`
 - `scripts/python/validate_cua_regression_cases.py`
+- `scripts/python/check_osworld_env_step.py`
 - `lib_run_single.run_single_example_cua_blackbox()`
 
 当前固定回归集合：

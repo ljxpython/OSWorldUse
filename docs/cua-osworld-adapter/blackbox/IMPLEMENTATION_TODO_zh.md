@@ -42,8 +42,8 @@
 
 - [x] `DesktopEnv.reset()` 正常
 - [x] `env._get_obs()` 可返回 screenshot
-- [ ] `env.step("WAIT")` 正常（blackbox 当前不依赖，待单独确认）
-- [ ] `env.step(pyautogui code)` 正常（blackbox 当前不依赖，待单独确认）
+- [x] `env.step("WAIT")` 正常
+- [x] `env.step(pyautogui code)` 正常
 - [x] `env.evaluate()` 正常
 
 ### 3.3 约束确认

@@ -15,6 +15,7 @@
 - 当前 Mac 本地阶段验收范围收敛为 `num_envs=1`，并行稳定性不再阻塞本阶段。
 - 真实 VM 工具矩阵、连续多任务稳定性、失败分类、小批量真实 CUA 回归和 P6 兼容性检查入口已经完成。
 - CUA 本机路径、配置、版本和 timeout 默认值已收敛到仓库根目录 `.env`，代码不保留本机硬编码 CUA 路径。
+- `env.step()` 的 `WAIT` 和 `pyautogui` GUI 动作已通过真实 VM 独立验证。
 - 本清单中 `[x]` 表示代码已落地且至少经过本地 smoke 或真实单任务闭环验证；`[ ]` 表示仍待专项验证或实现补强。
 
 ---
@@ -44,7 +45,7 @@
 - [x] `DesktopEnv` 可正常启动
 - [x] `env.reset()` 可用
 - [x] `env._get_obs()` 可拿到 screenshot
-- [ ] `env.step()` 可执行 GUI 动作（blackbox 当前直接走 controller，待单独确认）
+- [x] `env.step()` 可执行 GUI 动作
 - [x] `env.evaluate()` 可运行
 
 ---
