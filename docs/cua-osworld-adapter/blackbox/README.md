@@ -19,6 +19,8 @@
 - [方案总设计与实施清单](./PLAN_B_CUA_BLACKBOX_OSWORLD_INTEGRATION_zh.md)
 - [Bridge 协议设计](./BRIDGE_PROTOCOL_zh.md)
 - [实现任务清单](./IMPLEMENTATION_TODO_zh.md)
+- [下一阶段整体规划与测试点](./NEXT_PHASE_PLAN_AND_TEST_POINTS_zh.md)
+- [评测 Case 扩展与 CUA 版本兼容策略](./EVALUATION_CASE_AND_CUA_VERSION_STRATEGY_zh.md)
 - [伪代码实现草案](./PSEUDOCODE_IMPLEMENTATION_zh.md)
 - [验收标准](./ACCEPTANCE_CRITERIA_zh.md)
 - [总体任务清单](./MASTER_CHECKLIST_zh.md)
@@ -33,6 +35,8 @@
 阅读建议：
 
 1. 如果目标是尽量少改 `CUA`，优先快速验证 benchmark 接入，先看方案 B。
-2. 如果目标是长期做标准 `mm_agents` 接入，再看方案 A。
+2. 如果目标是继续开发和验收当前 blackbox 路线，按“下一阶段整体规划与测试点”推进。
+3. 如果目标是新增评测 case 或升级 CUA 版本，按“评测 Case 扩展与 CUA 版本兼容策略”推进。
+4. 如果目标是长期做标准 `mm_agents` 接入，再看方案 A。
 
 如果本目录和上级 `cua-osworld-adapter/` 的描述出现冲突，以当前 blackbox 代码实现为准。

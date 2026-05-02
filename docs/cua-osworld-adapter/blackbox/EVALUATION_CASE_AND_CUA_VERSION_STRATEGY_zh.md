@@ -1,0 +1,370 @@
+# 评测 Case 扩展与 CUA 版本兼容策略
+
+日期：2026-05-02
+
+## 1. 结论
+
+当前 blackbox 路线可以复用 OSWorld 原有评测内容和指标体系。
+
+原因是 blackbox runner 仍然沿用 OSWorld 原生评测入口：
+
+- 从 `evaluation_examples/test_all.json` 或自定义 meta 文件读取任务集合。
+- 从 `evaluation_examples/examples/<domain>/<example_id>.json` 读取 task 配置。
+- 通过 `DesktopEnv.reset(task_config=example)` 初始化环境。
+- 在 CUA 执行结束后调用 `env.evaluate()` 打分。
+- 将分数写入标准 `result.txt`。
+
+CUA 在这里替换的是“执行任务的主体”，不是 OSWorld 的 case、环境初始化、evaluator 或 metric。
+
+---
+
+## 2. 可以复用的内容
+
+## 2.1 Case 组织方式
+
+可以继续复用：
+
+- `evaluation_examples/test_all.json`
+- `evaluation_examples/test_small.json`
+- 自定义 `test_xxx.json`
+- `evaluation_examples/examples/<domain>/<example_id>.json`
+- `--domain`
+- `--example_id`
+- `--test_all_meta_path`
+
+当前 blackbox runner 已经支持这些入口。
+
+## 2.2 指标体系
+
+可以继续复用：
+
+- task JSON 里的 `evaluator.func`
+- task JSON 里的 `evaluator.result`
+- task JSON 里的 `evaluator.expected`
+- task JSON 里的 `evaluator.options`
+- `desktop_env/evaluators/metrics/`
+- `desktop_env/evaluators/getters/`
+- `DesktopEnv.evaluate()`
+
+因此 CUA 的最终成功率、平均分、domain 分数应该和 OSWorld 原有 agent 使用同一套 evaluator 语义。
+
+## 2.3 环境初始化
+
+可以继续复用：
+
+- task JSON 里的 `snapshot`
+- task JSON 里的 `config`
+- task JSON 里的 `evaluator.postconfig`
+- OSWorld provider、VM reset、controller 和 setup 逻辑
+
+只要 case 能被 OSWorld 原生 runner 跑，理论上就能被 CUA blackbox runner 使用。
+
+---
+
+## 3. 不能直接等价复用的内容
+
+以下内容不能自动认为和其他 OSWorld agent 完全等价：
+
+- 原 agent 的逐步 action 轨迹格式。
+- 原 agent 的 response/action 统计。
+- 基于 OSWorld `env.step()` action history 的细粒度行为分析。
+- CUA 内部 reasoning、tool call、截图上下文的原生结构。
+
+blackbox 路线的过程可观测性主要来自：
+
+- `recording.mp4`
+- `runtime.log`
+- `traj.jsonl`
+- `bridge_requests.jsonl`
+- `bridge_screenshots/`
+- `cua.stdout.log`
+- `cua.stderr.log`
+- `cua_meta.json`
+- `run_meta.json`
+
+如果后续要做跨 agent 的细粒度行为对比，需要额外把 CUA bridge 请求归一化成 OSWorld 可比较的 step summary。
+
+---
+
+## 4. 新增评测 Case 的流程
+
+## 4.1 优先使用 OSWorld 原生 case schema
+
+新增 case 时优先按 OSWorld 原有方式做，不修改 CUA adapter。
+
+最小流程：
+
+1. 选择或新增 domain。
+2. 新建 `evaluation_examples/examples/<domain>/<new_id>.json`。
+3. 在 JSON 中定义 `id`、`snapshot`、`instruction`、`config`、`related_apps`、`evaluator`。
+4. 优先复用现有 getter 和 metric。
+5. 如果现有 evaluator 不够，再新增 getter 或 metric。
+6. 把 `<new_id>` 加入 `evaluation_examples/test_all.json` 或自定义 meta 文件。
+7. 用 `--domain` 和 `--example_id` 单独跑通。
+8. 再加入小批量回归集合。
+
+## 4.2 建议的 case 分类
+
+建议把新增 case 分成两类。
+
+标准 benchmark case：
+
+- 目标是所有 agent 都可评测。
+- 放入 `evaluation_examples/examples/<domain>/`。
+- 可以加入标准 `test_all.json` 或标准子集。
+- evaluator 必须尽量 agent 无关。
+
+CUA 接入回归 case：
+
+- 目标是验证 CUA blackbox 链路、GUI 工具和稳定性。
+- 可以复用 `evaluation_examples/examples/<domain>/`，但先放入单独 meta 文件。
+- 建议 meta 文件命名为 `evaluation_examples/test_cua_regression.json`。
+- 不应污染正式 benchmark 统计，除非 case 已被确认是通用任务。
+
+## 4.3 Case JSON 最小骨架
+
+```json
+{
+  "id": "new-uuid",
+  "snapshot": "chrome",
+  "instruction": "Do something observable in the VM.",
+  "source": "internal",
+  "config": [],
+  "related_apps": ["chrome"],
+  "evaluator": {
+    "func": "match_in_list",
+    "result": {
+      "type": "default_search_engine"
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": ["Bing"]
+      }
+    }
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}
+```
+
+实际新增 case 时必须根据任务选择正确 `snapshot`、`config`、getter 和 metric。
+
+---
+
+## 5. 新增 Case 的验收点
+
+新增 case 不能只看 CUA 是否能跑，还要先验收 case 本身。
+
+## 5.1 Case 静态检查
+
+检查项：
+
+- JSON 可解析。
+- `id` 和文件名一致。
+- 所属 domain 已加入 meta 文件。
+- `snapshot` 在当前 provider 下可用。
+- `instruction` 明确、可操作、无歧义。
+- `evaluator.func` 在 `desktop_env/evaluators/metrics/` 中存在。
+- `evaluator.result.type` 和 `evaluator.expected.type` 对应 getter 存在。
+
+## 5.2 Case 环境检查
+
+检查项：
+
+- `env.reset(task_config=example)` 正常。
+- `config` 能完成初始状态准备。
+- `env._get_obs()` 能返回 screenshot。
+- `evaluator.postconfig` 不破坏任务结果。
+
+## 5.3 Case 评测检查
+
+检查项：
+
+- 未执行任务时，`env.evaluate()` 应该返回低分或 0。
+- 人工或脚本完成任务后，`env.evaluate()` 应该返回高分或 1。
+- 同一个 case 重复运行结果稳定。
+- evaluator 不依赖宿主机状态。
+
+## 5.4 CUA 接入检查
+
+检查项：
+
+- 用 `run_multienv_cua_blackbox.py --domain <domain> --example_id <id>` 可单独运行。
+- 标准结果目录完整。
+- `result.txt`、`runtime.log`、`recording.mp4`、`cua_meta.json` 存在。
+- 失败时有 `failure_type` 或可定位日志。
+
+---
+
+## 6. CUA 版本兼容策略
+
+## 6.1 最小成本接入边界
+
+如果 CUA 保持以下外部契约稳定，升级 CUA 应该只需要换配置和二进制，不需要修改 OSWorld 侧核心代码：
+
+- `cua run <task>` 可用。
+- `--config` 可用。
+- `--runs-dir` 可用。
+- `--nodeid` 或 `--node-id` 可用。
+- `--openclaw-bin` 可用。
+- `--target-os linux` 可用。
+- `--target-screen <WxH>` 可用。
+- `--target-dpr 1` 可用。
+- `--max-steps` 可用。
+- `--max-duration-ms` 和 `--max-step-duration-ms` 可用。
+- CUA 仍通过 openclaw 调用远程工具。
+- openclaw 请求中仍能表达 `runId`、`reqId`、`tool`、`args`。
+
+## 6.2 升级 CUA 时允许变化的内容
+
+通常允许变化：
+
+- CUA 二进制路径。
+- CUA config 路径。
+- CUA 模型名称。
+- CUA 模型 provider、base url、api key。
+- CUA 内部 prompt、reasoning、规划策略。
+- CUA 内部日志格式。
+- CUA runsDir 内部文件结构。
+
+这些变化不应该影响 OSWorld 侧 evaluator。
+
+## 6.3 会导致适配成本上升的变化
+
+以下变化会破坏最小成本接入，需要修改 OSWorld 侧 bridge 或 launcher：
+
+- `cua run` CLI flag 发生破坏性改名。
+- `--nodeid` 远程工具模式被移除。
+- `--openclaw-bin` 被移除或语义变化。
+- openclaw CLI 调用格式变化。
+- CUA tool 名称发生破坏性变化。
+- CUA tool 参数 schema 发生破坏性变化。
+- screenshot 返回格式发生破坏性变化。
+- 坐标体系从 normalized/pixel 语义发生变化。
+- CUA 不再支持关闭 shell、records、brain 或 knowledge。
+
+对应修改位置通常是：
+
+- `osworld_cua_bridge/launcher.py`
+- `osworld_cua_bridge/bin/openclaw`
+- `osworld_cua_bridge/protocol.py`
+- `osworld_cua_bridge/tool_translator.py`
+
+---
+
+## 7. CUA 升级流程
+
+每次升级 CUA 建议按固定流程执行。
+
+## 7.1 记录版本信息
+
+需要记录：
+
+- `cua_version`
+- `cua_bin`
+- `cua_config_path`
+- `adapter_version`
+- `bridge_protocol_version`
+- `eval_profile`
+- `test_all_meta_path`
+- `screen_width`
+- `screen_height`
+
+如果后续补强 metadata，建议增加：
+
+- CUA binary hash。
+- CUA config hash。
+- CUA repo commit。
+- openclaw shim version。
+
+## 7.2 兼容性检查
+
+检查命令：
+
+```bash
+cua --help
+cua run --help
+```
+
+检查项：
+
+- 必需 CLI flag 仍存在。
+- `--nodeid` 或 `--node-id` 仍存在。
+- `--openclaw-bin` 仍存在。
+- timeout、max steps、target screen 参数仍存在。
+
+## 7.3 本地 smoke
+
+执行：
+
+```bash
+python3 scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke
+```
+
+通过标准：
+
+- bridge protocol 正常。
+- openclaw shim 正常。
+- 工具翻译正常。
+- disabled tool 仍被拒绝。
+
+## 7.4 真实 VM functional test
+
+执行下一阶段新增的 functional test。
+
+通过标准：
+
+- screenshot、click、text、hotkey 等基础工具在 VM 内可用。
+- bridge request/response 可追踪。
+- failure type 可用。
+
+## 7.5 真实 CUA 小批量回归
+
+执行：
+
+```bash
+uv run python scripts/python/run_multienv_cua_blackbox.py \
+  --provider_name vmware \
+  --path_to_vm /Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx \
+  --headless \
+  --action_space pyautogui \
+  --observation_type screenshot \
+  --test_all_meta_path evaluation_examples/test_cua_regression.json \
+  --model <cua-version-label> \
+  --num_envs 1 \
+  --result_dir ./results_cua_regression \
+  --screen_width 1920 \
+  --screen_height 1080 \
+  --cua_bin <path-to-cua-binary> \
+  --cua_config_path <path-to-cua-config> \
+  --log_level INFO
+```
+
+通过标准：
+
+- 至少 3 个任务跑到 `env.evaluate()`。
+- 成功任务有可追踪录屏和日志。
+- 失败任务有明确失败原因。
+
+---
+
+## 8. 最终判定
+
+新增 case 可以进入评测集合，需要满足：
+
+- case 静态检查通过。
+- case 环境检查通过。
+- case 评测检查通过。
+- CUA blackbox 单任务运行通过或失败可定位。
+
+CUA 新版本可以替换旧版本，需要满足：
+
+- CLI 兼容性检查通过。
+- 本地 smoke 通过。
+- 真实 VM functional test 通过。
+- 真实 CUA 小批量回归通过。
+- 不需要修改 CUA 源码。
+
+如果 CUA 升级导致 OSWorld 侧必须修改 bridge 或 launcher，应记录为兼容性破坏，不视为最小成本升级。

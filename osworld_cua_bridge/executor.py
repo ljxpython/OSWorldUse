@@ -295,7 +295,7 @@ class CuaBridgeExecutor:
             "except Exception:\n"
             "    try:\n"
             "        import subprocess, shlex\n"
-            "        subprocess.run(['bash', '-lc', f\"printf %s {_cua_text!r} | xclip -selection clipboard\"], check=False)\n"
+            "        subprocess.run(['bash', '-lc', f\"printf %s {_cua_text!r} | xclip -selection clipboard\"], check=True)\n"
             "        pyautogui.hotkey('ctrl', 'v')\n"
             "    except Exception:\n"
             "        pyautogui.write(_cua_text)\n"
