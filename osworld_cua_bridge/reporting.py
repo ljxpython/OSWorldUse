@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import datetime
+import hashlib
 import json
 import os
 from typing import Any
@@ -20,9 +21,11 @@ SUMMARY_METADATA_FIELDS = (
     "cua_bin",
     "cua_config_path",
     "cua_repo_root",
+    "openclaw_bin",
     "provider_name",
     "num_envs",
     "max_steps",
+    "test_all_meta_path",
 )
 
 
@@ -75,7 +78,30 @@ def load_args_json(result_root: str) -> dict[str, Any]:
 def summary_metadata_from_args(args: Any) -> dict[str, Any]:
     metadata = {field: _get_value(args, field) for field in SUMMARY_METADATA_FIELDS}
     metadata["cua_version"] = metadata.get("cua_version") or metadata.get("model")
+    _add_file_hash(metadata, "cua_bin", "cua_bin_sha256")
+    _add_file_hash(metadata, "cua_config_path", "cua_config_sha256")
+    _add_file_hash(metadata, "openclaw_bin", "openclaw_sha256")
+    _add_file_hash(metadata, "test_all_meta_path", "test_all_meta_sha256")
     return {key: value for key, value in metadata.items() if value not in (None, "")}
+
+
+def _add_file_hash(metadata: dict[str, Any], path_key: str, hash_key: str) -> None:
+    digest = _file_sha256(metadata.get(path_key))
+    if digest:
+        metadata[hash_key] = digest
+
+
+def _file_sha256(path: Any) -> str | None:
+    if not path:
+        return None
+    expanded = os.path.abspath(os.path.expanduser(os.path.expandvars(str(path))))
+    if not os.path.isfile(expanded):
+        return None
+    digest = hashlib.sha256()
+    with open(expanded, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def build_blackbox_summary(

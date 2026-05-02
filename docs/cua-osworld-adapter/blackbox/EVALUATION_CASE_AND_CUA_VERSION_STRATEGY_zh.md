@@ -182,6 +182,14 @@ CUA 接入回归 case：
 - `evaluator.func` 在 `desktop_env/evaluators/metrics/` 中存在。
 - `evaluator.result.type` 和 `evaluator.expected.type` 对应 getter 存在。
 
+当前可执行入口：
+
+```bash
+uv run python scripts/python/validate_cua_regression_cases.py \
+  --meta_path evaluation_examples/test_cua_regression.json \
+  --report_path ./results_cua_case_validation/report.json
+```
+
 ## 5.2 Case 环境检查
 
 检查项：
@@ -285,12 +293,40 @@ CUA 接入回归 case：
 - `screen_width`
 - `screen_height`
 
-如果后续补强 metadata，建议增加：
+这些 CUA 相关参数既可以通过 CLI 传入，也可以通过环境变量作为默认值传入。CLI 参数优先级高于环境变量。
+
+| CLI 参数 | 环境变量 | 建议 |
+| --- | --- | --- |
+| `--cua_bin` | `OSWORLD_CUA_BIN` | 适合写入 env，用于切换 CUA 二进制 |
+| `--cua_config_path` | `OSWORLD_CUA_CONFIG_PATH` | 适合写入 env，用于切换 CUA 配置 |
+| `--cua_repo_root` | `OSWORLD_CUA_REPO_ROOT` | 适合写入 env，用于指定 CUA 工作目录 |
+| `--cua_version` | `OSWORLD_CUA_VERSION` | 适合写入 env，用于结果标记 |
+| `--openclaw_bin` | `OSWORLD_OPENCLAW_BIN` | 可写入 env，默认使用本仓库 shim |
+| `--cua_runs_dir` | `OSWORLD_CUA_RUNS_DIR` | 谨慎写入 env，默认每个 task 独立目录更安全 |
+| `--cua_node_id` | `OSWORLD_CUA_NODE_ID` | 单环境可写入 env，并发时不建议固定 |
+| `--cua_max_duration_ms` | `OSWORLD_CUA_MAX_DURATION_MS` | 可写入 env |
+| `--cua_max_step_duration_ms` | `OSWORLD_CUA_MAX_STEP_DURATION_MS` | 可写入 env |
+| `--cua_timeout_grace_seconds` | `OSWORLD_CUA_TIMEOUT_GRACE_SECONDS` | 可写入 env |
+
+以下运行时环境变量由 OSWorld 自动注入或覆盖后传给 CUA 子进程，不建议绕过 runner 直接手写依赖；其中 `OSWORLD_CUA_NODE_ID` 如果手动设置，只应作为 runner 默认入参使用：
+
+- `OSWORLD_CUA_BRIDGE_URL`
+- `OSWORLD_CUA_RUN_ID`
+- `OSWORLD_CUA_NODE_ID`
+- `CUA_CONFIG_DIR`
+- `CUA_OSWORLD_MODEL_API_KEY`
+
+当前已补强 metadata：
 
 - CUA binary hash。
 - CUA config hash。
+- runtime config hash。
+- openclaw shim hash。
+- meta file hash。
+
+后续仍可继续补充：
+
 - CUA repo commit。
-- openclaw shim version。
 
 ## 7.2 兼容性检查
 
@@ -307,6 +343,21 @@ cua run --help
 - `--nodeid` 或 `--node-id` 仍存在。
 - `--openclaw-bin` 仍存在。
 - timeout、max steps、target screen 参数仍存在。
+
+当前可执行入口：
+
+```bash
+uv run python scripts/python/check_cua_blackbox_compatibility.py \
+  --cua_config_path /Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json \
+  --result_dir ./results_cua_compatibility
+```
+
+输出：
+
+- `compatibility_report.json`
+- CUA CLI 契约检查结果
+- CUA binary / config / openclaw / meta hash
+- 回归 case 静态检查结果
 
 ## 7.3 本地 smoke
 

@@ -296,15 +296,32 @@
 - [ ] 验证 bridge port 不冲突
 - [ ] 验证失败任务不影响后续任务
 
+验证记录：
+
+- 2026-05-02 已执行 `num_envs=2` 并行预验收命令，入口参数和结果目录已生成。
+- 结果目录：`results_cua_parallel_verify/pyautogui/screenshot/cua-blackbox-parallel-verify/`
+- 日志文件：`logs/normal-20260502@135207.log`
+- 运行结果：两个 worker 在 provider 初始化阶段同时启动同一个 `vmware_vm_data/Ubuntu0/Ubuntu0.vmx`，VMware 返回 `Error: The operation was canceled`。
+- 当前本地环境仅发现一个 `.vmx`：`vmware_vm_data/Ubuntu0/Ubuntu0.vmx`，因此本次没有进入 CUA / bridge 执行阶段，不能证明 runId、nodeId 或 bridge port 的真实并行稳定性。
+- 结论：`TP-026` 当前状态是环境阻塞，不是 CUA blackbox bridge 并发缺陷；真正验收前需要至少两个独立 VM 实例，或 runner 支持为不同 worker 分配不同 VM path。
+
 ### 12.6 P6：Case 扩展与 CUA 版本兼容
 
-- [ ] 明确复用 OSWorld 原生 case 和 evaluator 的边界
-- [ ] 明确新增标准 benchmark case 的流程
-- [ ] 明确新增 CUA 回归 case 的流程
+- [x] 明确复用 OSWorld 原生 case 和 evaluator 的边界
+- [x] 明确新增标准 benchmark case 的流程
+- [x] 明确新增 CUA 回归 case 的流程
 - [x] 建立或约定 `evaluation_examples/test_cua_regression.json`
-- [ ] 明确 CUA 外部 CLI 契约
-- [ ] 明确 CUA tool schema 兼容边界
-- [ ] CUA 升级时记录 `cua_version`
-- [ ] CUA 升级时记录 `cua_bin` 和 `cua_config_path`
-- [ ] 后续补强 CUA binary hash 和 config hash
+- [x] 明确 CUA 外部 CLI 契约
+- [x] 明确 CUA tool schema 兼容边界
+- [x] CUA 升级时记录 `cua_version`
+- [x] CUA 升级时记录 `cua_bin` 和 `cua_config_path`
+- [x] 补强 CUA binary hash、config hash、openclaw hash 和 meta hash
+- [x] 新增 CUA blackbox 兼容性检查脚本
 - [ ] CUA 升级后执行 smoke、functional、小批量回归
+
+验证记录：
+
+- 2026-05-02 新增 `scripts/python/check_cua_blackbox_compatibility.py`，用于检查 CUA CLI 契约、回归 case 静态合法性和版本/hash 元数据。
+- 2026-05-02 执行 `scripts/python/validate_cua_regression_cases.py --report_path ./results_cua_case_validation/report.json`，5 个回归 case 静态检查通过。
+- 2026-05-02 执行 `scripts/python/check_cua_blackbox_compatibility.py --result_dir ./results_cua_compatibility`，`cua --help`、`cua run --help`、config、openclaw、回归 case 检查均通过。
+- 2026-05-02 执行 `scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke_p6`，`SMK-001` 到 `SMK-015` 全部通过。

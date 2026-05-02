@@ -12,7 +12,8 @@
 
 - 当前主线已经收敛到 `osworld_cua_bridge/` blackbox bridge，不再推进历史 `mm_agents/cua` adapter 路线。
 - Bridge MVP、blackbox runner、本地 smoke test、单个真实 VM benchmark 闭环已经完成。
-- 仍未完成的是真实 VM 工具矩阵、连续多任务稳定性、失败分类和最终验收结论。
+- 当前 Mac 本地阶段验收范围收敛为 `num_envs=1`，并行稳定性不再阻塞本阶段。
+- 真实 VM 工具矩阵、连续多任务稳定性、失败分类、小批量真实 CUA 回归和 P6 兼容性检查入口已经完成。
 - 本清单中 `[x]` 表示代码已落地且至少经过本地 smoke 或真实单任务闭环验证；`[ ]` 表示仍待专项验证或实现补强。
 
 ---
@@ -118,11 +119,13 @@
 
 ## 10. 稳定性
 
-- [ ] 连续任务不崩
+- [x] 连续任务不崩
 - [x] 异常可恢复
 - [x] 子进程可清理
 - [x] 日志可追踪
 - [x] 失败原因可定位
+- [ ] `num_envs > 1` 真实并行稳定性通过（当前本地单 VM 阻塞）
+- [x] 当前阶段明确只以 `num_envs=1` 作为本地验收范围
 
 ---
 
@@ -130,9 +133,9 @@
 
 - [x] 完成 smoke test 验收
 - [x] 完成功能测试验收
-- [ ] 完成稳定性验收
-- [ ] 形成验收结论
-- [ ] 决定是否进入下一阶段
+- [x] 完成 `num_envs=1` 稳定性验收
+- [x] 形成当前阶段验收结论
+- [x] 决定进入 `num_envs=1` 小规模评测与 case/版本兼容维护阶段
 
 ---
 
@@ -142,8 +145,9 @@
 - [x] 完成 P2：异常分类与清理补强
 - [x] 完成 P3：批量评测汇总
 - [x] 完成 P4：真实 CUA 小规模回归
-- [ ] 完成 P5：并行与长期稳定性预验收
-- [ ] 完成 P6：Case 扩展与 CUA 版本兼容策略
+- [x] 完成 P5：`num_envs=1` 串行与长期稳定性预验收
+- [ ] 完成 P5 扩展：`num_envs>1` 并行稳定性预验收（Mac 单 VM 暂缓）
+- [x] 完成 P6：Case 扩展与 CUA 版本兼容策略
 
 ---
 
@@ -154,5 +158,20 @@
 - [x] `TP-015` 到 `TP-019` 异常与清理测试通过
 - [x] `TP-020` 到 `TP-022` 汇总报表测试通过
 - [x] `TP-023` 到 `TP-024` 真实 CUA 回归测试通过
-- [ ] `TP-025` 到 `TP-026` 稳定性测试通过
-- [ ] `TP-027` 到 `TP-034` Case 扩展与 CUA 版本兼容测试通过
+- [x] `TP-025` 串行稳定性测试通过
+- [ ] `TP-026` 并行稳定性测试通过（当前本地只有一个 `.vmx`，未进入 CUA / bridge 阶段）
+- [x] `TP-027` 新增 case 静态检查入口通过
+- [ ] `TP-028` 到 `TP-030` 新增 case 环境/evaluator/blackbox 单跑检查通过（等待实际新增 case 时执行）
+- [x] `TP-031` 到 `TP-033` CUA CLI、配置、openclaw 兼容检查通过
+- [ ] `TP-034` CUA 小批量升级回归通过（等待实际 CUA 升级时执行）
+
+P5 并行验证记录：
+
+- 2026-05-02 尝试 `num_envs=2`，两个 EnvProcess 同时竞争 `vmware_vm_data/Ubuntu0/Ubuntu0.vmx`，VMware provider 启动失败。
+- 失败发生在 CUA / bridge 之前，因此不能作为 CUA 并发缺陷处理；完成 `TP-026` 需要准备多个独立 VM 或扩展 runner 支持 per-worker VM path。
+
+P6 验证记录：
+
+- 2026-05-02 `validate_cua_regression_cases.py` 静态检查 5 个回归 case 通过。
+- 2026-05-02 `check_cua_blackbox_compatibility.py` 检查 CUA CLI、config、openclaw、回归 case 通过。
+- 2026-05-02 `cua_smoke_test.py` 本地 smoke `SMK-001` 到 `SMK-015` 全部通过。

@@ -78,20 +78,39 @@ def config() -> argparse.Namespace:
     parser.add_argument("--adapter_version", type=str, default="blackbox-v1")
     parser.add_argument("--bridge_protocol_version", type=str, default="bridge-v1")
     parser.add_argument("--eval_profile", type=str, default="ubuntu-cua-blackbox-bridge-v1")
-    parser.add_argument("--cua_version", type=str, default=None)
+    parser.add_argument("--cua_version", type=str, default=_env_str("OSWORLD_CUA_VERSION"))
 
-    parser.add_argument("--cua_bin", type=str, default=None, help="Path to cua binary; defaults to PATH cua or CUA dist CLI")
-    parser.add_argument("--cua_repo_root", type=str, default=None)
-    parser.add_argument("--cua_config_path", type=str, default=DEFAULT_CUA_CONFIG_PATH)
-    parser.add_argument("--cua_runs_dir", type=str, default=None)
-    parser.add_argument("--cua_node_id", type=str, default=None)
-    parser.add_argument("--cua_max_duration_ms", type=int, default=0)
-    parser.add_argument("--cua_max_step_duration_ms", type=int, default=0)
-    parser.add_argument("--cua_timeout_grace_seconds", type=float, default=60)
-    parser.add_argument("--openclaw_bin", type=str, default=None)
+    parser.add_argument("--cua_bin", type=str, default=_env_str("OSWORLD_CUA_BIN"), help="Path to cua binary; defaults to PATH cua or CUA dist CLI")
+    parser.add_argument("--cua_repo_root", type=str, default=_env_str("OSWORLD_CUA_REPO_ROOT"))
+    parser.add_argument("--cua_config_path", type=str, default=_env_str("OSWORLD_CUA_CONFIG_PATH", DEFAULT_CUA_CONFIG_PATH))
+    parser.add_argument("--cua_runs_dir", type=str, default=_env_str("OSWORLD_CUA_RUNS_DIR"))
+    parser.add_argument("--cua_node_id", type=str, default=_env_str("OSWORLD_CUA_NODE_ID"))
+    parser.add_argument("--cua_max_duration_ms", type=int, default=_env_int("OSWORLD_CUA_MAX_DURATION_MS", 0))
+    parser.add_argument("--cua_max_step_duration_ms", type=int, default=_env_int("OSWORLD_CUA_MAX_STEP_DURATION_MS", 0))
+    parser.add_argument("--cua_timeout_grace_seconds", type=float, default=_env_float("OSWORLD_CUA_TIMEOUT_GRACE_SECONDS", 60))
+    parser.add_argument("--openclaw_bin", type=str, default=_env_str("OSWORLD_OPENCLAW_BIN"))
     parser.add_argument("--cua_extra_args", nargs=argparse.REMAINDER, default=None)
 
     return parser.parse_args()
+
+
+def _env_str(name: str, default: str | None = None) -> str | None:
+    value = os.environ.get(name)
+    return value if value not in (None, "") else default
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+    return int(value)
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+    return float(value)
 
 
 args = config()

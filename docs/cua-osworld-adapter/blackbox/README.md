@@ -28,9 +28,17 @@
 - `summary/domain_summary.json`
 - `summary/failure_summary.json`
 
+当前 Mac 本地阶段验收范围：
+
+- `num_envs=1`
+- VMware 单 VM
+- 并行稳定性 `TP-026` 暂缓，不阻塞当前阶段单环境评测
+
 当前文档包括：
 
 - [方案总设计与实施清单](./PLAN_B_CUA_BLACKBOX_OSWORLD_INTEGRATION_zh.md)
+- [技术架构图](./TECHNICAL_ARCHITECTURE_zh.md)
+- [单环境阶段验收结论](./SINGLE_ENV_ACCEPTANCE_CONCLUSION_zh.md)
 - [Bridge 协议设计](./BRIDGE_PROTOCOL_zh.md)
 - [实现任务清单](./IMPLEMENTATION_TODO_zh.md)
 - [下一阶段整体规划与测试点](./NEXT_PHASE_PLAN_AND_TEST_POINTS_zh.md)

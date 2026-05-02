@@ -193,6 +193,13 @@
 - 并行任务不会互相串 runId 或 nodeId。
 - 失败任务不会导致整批评测提前退出。
 
+当前验证记录：
+
+- 2026-05-02 已完成串行 5 任务真实 CUA 回归，`num_envs=1` 下未出现跨任务目录、runId 或结果汇总污染。
+- 2026-05-02 已尝试 `num_envs=2` 并行预验收，但当前本地 VMware 目录只有一个 `vmware_vm_data/Ubuntu0/Ubuntu0.vmx`。
+- 两个 EnvProcess 同时启动同一个 VM，失败发生在 provider 启动阶段，日志见 `logs/normal-20260502@135207.log`，结果目录仅生成 `args.json`。
+- 因未进入 CUA / bridge 阶段，`TP-026` 暂不能打勾；后续必须先准备多个独立 VM，或扩展 runner 让不同 worker 绑定不同 `path_to_vm`。
+
 ---
 
 ## 3.6 P6：Case 扩展与 CUA 版本兼容
@@ -219,6 +226,13 @@
 - 新增 case 不需要修改 CUA adapter。
 - CUA 版本升级优先只替换 `--cua_bin`、`--cua_config_path` 和 `--cua_version`。
 - CLI、openclaw、tool schema 发生破坏性变化时能明确定位到兼容性破坏。
+
+当前验证记录：
+
+- 2026-05-02 已新增 `scripts/python/check_cua_blackbox_compatibility.py`，覆盖 CUA CLI 契约、config/openclaw 存在性、hash 元数据和回归 case 静态检查。
+- 2026-05-02 已增强 `scripts/python/validate_cua_regression_cases.py`，检查 evaluator metric 和 getter 是否存在，并可输出 JSON report。
+- 2026-05-02 已执行 CUA 兼容性检查，`cua --help`、`cua run --help`、回归 case 静态检查均通过。
+- 2026-05-02 已执行本地 smoke，`SMK-001` 到 `SMK-015` 全部通过。
 
 ---
 
@@ -251,14 +265,14 @@
 | TP-023 | regression | 真实 CUA 单任务 | blackbox runner | 完整生成 result 和日志 |
 | TP-024 | regression | 真实 CUA 小批量 | 3 到 5 个 task | 可完成汇总且失败可定位 |
 | TP-025 | stability | 串行连续任务 | `num_envs=1` 多任务 | 不崩溃、不串目录、不串 runId |
-| TP-026 | stability | 并行任务预验收 | `num_envs>1` | 不串 nodeId、runId、bridge port |
-| TP-027 | case | 新增 case 静态检查 | 读取 case JSON | id、snapshot、instruction、evaluator 均有效 |
+| TP-026 | stability | 并行任务预验收 | `num_envs>1`，且每个 worker 使用独立 VM 实例 | 不串 nodeId、runId、bridge port |
+| TP-027 | case | 新增 case 静态检查 | `validate_cua_regression_cases.py` | id、snapshot、instruction、evaluator 均有效 |
 | TP-028 | case | 新增 case 环境检查 | `env.reset()` + screenshot | reset/config/screenshot 正常 |
 | TP-029 | case | 新增 case evaluator 检查 | 人工或脚本完成前后 evaluate | 未完成低分，完成后高分 |
 | TP-030 | case | 新增 case blackbox 单跑 | `--domain` + `--example_id` | 标准结果目录完整 |
 | TP-031 | version | CUA CLI 兼容检查 | `cua --help` / `cua run --help` | 必需 flag 仍存在 |
-| TP-032 | version | CUA 配置兼容检查 | 指定 `--cua_config_path` | runner 能生成 runtime config |
-| TP-033 | version | CUA openclaw 兼容检查 | 本地 smoke 或 functional test | openclaw shim 请求格式兼容 |
+| TP-032 | version | CUA 配置兼容检查 | `check_cua_blackbox_compatibility.py` | config 存在且 hash 可记录 |
+| TP-033 | version | CUA openclaw 兼容检查 | `check_cua_blackbox_compatibility.py` + smoke | openclaw shim 请求格式兼容 |
 | TP-034 | version | CUA 小批量升级回归 | `test_cua_regression.json` | 至少 3 个任务跑到 evaluate |
 
 ---
@@ -269,6 +283,22 @@
 
 ```bash
 python3 scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke
+```
+
+CUA blackbox 兼容性检查：
+
+```bash
+uv run python scripts/python/check_cua_blackbox_compatibility.py \
+  --cua_config_path /Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json \
+  --result_dir ./results_cua_compatibility
+```
+
+CUA 回归 case 静态检查：
+
+```bash
+uv run python scripts/python/validate_cua_regression_cases.py \
+  --meta_path evaluation_examples/test_cua_regression.json \
+  --report_path ./results_cua_case_validation/report.json
 ```
 
 真实 VM blackbox 单任务：

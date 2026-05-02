@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import signal
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -24,8 +25,14 @@ from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from osworld_cua_bridge.server import BridgeServer
 
 
-DEFAULT_CUA_CONFIG_PATH = "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json"
-DEFAULT_CUA_REPO_ROOT = "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua"
+DEFAULT_CUA_CONFIG_PATH = os.environ.get(
+    "OSWORLD_CUA_CONFIG_PATH",
+    "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua/config/local.json",
+)
+DEFAULT_CUA_REPO_ROOT = os.environ.get(
+    "OSWORLD_CUA_REPO_ROOT",
+    "/Users/bytedance/PycharmProjects/work/xua/runtime/agents/cua",
+)
 
 
 @dataclass
@@ -42,6 +49,13 @@ class CuaRunResult:
     bridge_url: str
     runtime_config_path: str
     config_redacted: bool
+    source_config_path: str | None = None
+    source_config_sha256: str | None = None
+    runtime_config_sha256: str | None = None
+    cua_binary_path: str | None = None
+    cua_binary_sha256: str | None = None
+    openclaw_bin: str | None = None
+    openclaw_sha256: str | None = None
     failure_type: str | None = None
     failure_reason: str | None = None
     failure_stage: str | None = None
@@ -89,8 +103,11 @@ def run_cua_blackbox(
     max_step_duration_ms = int(getattr(args, "cua_max_step_duration_ms", 0) or 0)
     timeout_grace_seconds = float(getattr(args, "cua_timeout_grace_seconds", 60) or 0)
     config_path = getattr(args, "cua_config_path", None) or DEFAULT_CUA_CONFIG_PATH
+    source_config_path = os.path.abspath(os.path.expanduser(os.path.expandvars(config_path)))
+    source_config_sha256 = _file_sha256(source_config_path)
     normalized_input = _config_normalized_input(config_path)
     config_path, config_env, config_redacted = _prepare_runtime_config(config_path, example_result_dir)
+    runtime_config_sha256 = _file_sha256(config_path)
     runs_dir = getattr(args, "cua_runs_dir", None) or os.path.join(example_result_dir, "cua_runs")
     runs_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(runs_dir)))
     cua_repo_root = getattr(args, "cua_repo_root", None) or DEFAULT_CUA_REPO_ROOT
@@ -100,6 +117,11 @@ def run_cua_blackbox(
         "bin",
         "openclaw",
     )
+    openclaw_shim = os.path.abspath(os.path.expanduser(os.path.expandvars(openclaw_shim)))
+    openclaw_sha256 = _file_sha256(openclaw_shim)
+    cua_command = resolve_cua_command(getattr(args, "cua_bin", None))
+    cua_binary_path = _command_binary_path(cua_command)
+    cua_binary_sha256 = _file_sha256(cua_binary_path) if cua_binary_path else None
 
     executor = CuaBridgeExecutor(
         env=env,
@@ -126,7 +148,7 @@ def run_cua_blackbox(
     os.makedirs(runs_dir, exist_ok=True)
 
     command = [
-        *resolve_cua_command(getattr(args, "cua_bin", None)),
+        *cua_command,
         "run",
         instruction,
         "--config",
@@ -261,6 +283,13 @@ def run_cua_blackbox(
         bridge_url=server.url,
         runtime_config_path=config_path,
         config_redacted=config_redacted,
+        source_config_path=source_config_path,
+        source_config_sha256=source_config_sha256,
+        runtime_config_sha256=runtime_config_sha256,
+        cua_binary_path=cua_binary_path,
+        cua_binary_sha256=cua_binary_sha256,
+        openclaw_bin=openclaw_shim,
+        openclaw_sha256=openclaw_sha256,
         failure_type=failure_type,
         failure_reason=failure_reason,
         failure_stage=failure_stage,
@@ -339,6 +368,30 @@ def _read_text(path: str) -> str:
         return ""
 
 
+def _file_sha256(path: str | None) -> str | None:
+    if not path:
+        return None
+    expanded = os.path.abspath(os.path.expanduser(os.path.expandvars(path)))
+    if not os.path.isfile(expanded):
+        return None
+    digest = hashlib.sha256()
+    with open(expanded, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _command_binary_path(command: list[str]) -> str | None:
+    if not command:
+        return None
+    if len(command) >= 2 and os.path.basename(command[0]) == "node":
+        candidate = command[1]
+    else:
+        candidate = command[0]
+    expanded = os.path.abspath(os.path.expanduser(os.path.expandvars(candidate)))
+    return expanded if os.path.isfile(expanded) else None
+
+
 def _write_meta(example_result_dir: str, result: CuaRunResult) -> None:
     payload = {
         "run_id": result.run_id,
@@ -351,6 +404,13 @@ def _write_meta(example_result_dir: str, result: CuaRunResult) -> None:
         "stderr_path": result.stderr_path,
         "runtime_config_path": result.runtime_config_path,
         "config_redacted": result.config_redacted,
+        "source_config_path": result.source_config_path,
+        "source_config_sha256": result.source_config_sha256,
+        "runtime_config_sha256": result.runtime_config_sha256,
+        "cua_binary_path": result.cua_binary_path,
+        "cua_binary_sha256": result.cua_binary_sha256,
+        "openclaw_bin": result.openclaw_bin,
+        "openclaw_sha256": result.openclaw_sha256,
         "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
         "failure_type": result.failure_type,
         "failure_reason": result.failure_reason,
