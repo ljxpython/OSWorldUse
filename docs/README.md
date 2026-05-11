@@ -1,6 +1,6 @@
 # Docs Index
 
-这个目录目前分成 3 类内容：
+这个目录目前分成 5 类内容：
 
 - `code-reading/`
   面向 OSWorld 仓库源码阅读、运行链路、Agent 接入和实践文档。
@@ -11,6 +11,8 @@
   `blackbox/` 补充文档现在已经并入这个目录下面。
 - `evaluation-case-analysis/`
   面向 `evaluation_examples/` 的评测 case 汇总，按平台和应用域列出每个 case 在做什么。
+- runbooks
+  面向云镜像、环境配置、benchmark 执行和故障排查的操作手册。
 
 ## 当前主线
 
@@ -28,6 +30,11 @@
 - `scripts/python/run_multienv_cua.py`
 
 这些历史代码只保留参考，不作为 fallback。
+
+## Runbooks
+
+- [火山云 OSWorld 镜像构建与 CUA Benchmark 运行手册](./VOLCENGINE_OSWORLD_IMAGE_AND_BENCHMARK_RUNBOOK_zh.md)
+- [Windows OSWorld 镜像构建与可用性验证手册](./WINDOWS_OSWORLD_IMAGE_AND_VALIDATION_RUNBOOK_zh.md)
 
 ## Code Reading
 

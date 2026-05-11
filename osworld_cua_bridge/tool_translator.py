@@ -135,12 +135,14 @@ def map_args_to_screen(
 
 
 def resolve_drag_coords(args: dict[str, Any]) -> tuple[int, int, int, int]:
-    if all(key in args for key in ("fromX", "fromY", "toX", "toY")):
+    if "fromX" in args and "fromY" in args and ("toX" in args or "toY" in args):
+        from_x = _as_int(args["fromX"], "fromX")
+        from_y = _as_int(args["fromY"], "fromY")
         return (
-            _as_int(args["fromX"], "fromX"),
-            _as_int(args["fromY"], "fromY"),
-            _as_int(args["toX"], "toX"),
-            _as_int(args["toY"], "toY"),
+            from_x,
+            from_y,
+            _as_int(args.get("toX", from_x), "toX"),
+            _as_int(args.get("toY", from_y), "toY"),
         )
 
     start = _bbox_center(args, "from_bbox", "from_bbox_format")

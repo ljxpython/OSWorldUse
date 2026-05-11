@@ -39,5 +39,9 @@ def create_vm_manager_and_provider(provider_name: str, region: str, use_proxy: b
         from desktop_env.providers.volcengine.manager import VolcengineVMManager
         from desktop_env.providers.volcengine.provider import VolcengineProvider
         return VolcengineVMManager(), VolcengineProvider()
+    elif provider_name == "remote":
+        from desktop_env.providers.remote.manager import RemoteVMManager
+        from desktop_env.providers.remote.provider import RemoteProvider
+        return RemoteVMManager(), RemoteProvider(region)
     else:
         raise NotImplementedError(f"{provider_name} not implemented!")

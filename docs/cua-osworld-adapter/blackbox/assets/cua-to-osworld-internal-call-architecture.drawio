@@ -1,0 +1,102 @@
+<mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="800" pageHeight="600" math="0" shadow="0">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <mxCell id="title" value="CUA 到 OSWorld 内部调用架构图" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+      <mxGeometry x="180" y="18" width="440" height="34" as="geometry"/>
+    </mxCell>
+    <mxCell id="subtitle" value="CUA 只发工具调用 JSON；桥接层负责协议转发和翻译；OSWorld controller 才真正驱动 VM" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+      <mxGeometry x="125" y="52" width="550" height="24" as="geometry"/>
+    </mxCell>
+    <mxCell id="lane_cua" value="CUA Runtime" style="swimlane;startSize=28;horizontal=1;rounded=1;whiteSpace=wrap;html=1;dashed=1;strokeColor=#64748B;fillColor=#F8FAFC;fontStyle=1;fontColor=#334155;container=0;collapsible=0;" vertex="1" parent="1">
+      <mxGeometry x="25" y="90" width="220" height="455" as="geometry"/>
+    </mxCell>
+    <mxCell id="lane_bridge" value="桥接层：openclaw shim + bridge" style="swimlane;startSize=28;horizontal=1;rounded=1;whiteSpace=wrap;html=1;dashed=1;strokeColor=#64748B;fillColor=#FFF7ED;fontStyle=1;fontColor=#334155;container=0;collapsible=0;" vertex="1" parent="1">
+      <mxGeometry x="285" y="90" width="230" height="455" as="geometry"/>
+    </mxCell>
+    <mxCell id="lane_osworld" value="OSWorld 内部调用" style="swimlane;startSize=28;horizontal=1;rounded=1;whiteSpace=wrap;html=1;dashed=1;strokeColor=#64748B;fillColor=#F0FDF4;fontStyle=1;fontColor=#334155;container=0;collapsible=0;" vertex="1" parent="1">
+      <mxGeometry x="550" y="90" width="225" height="455" as="geometry"/>
+    </mxCell>
+    <mxCell id="cua_cli" value="CUA CLI / Binary&#xa;cua run instruction&#xa;--nodeid + --openclaw-bin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="48" y="125" width="175" height="66" as="geometry"/>
+    </mxCell>
+    <mxCell id="cua_loop" value="Agent Loop&#xa;模型观察截图&#xa;选择远程 tool" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="48" y="220" width="175" height="66" as="geometry"/>
+    </mxCell>
+    <mxCell id="cua_invoke" value="openclaw nodes invoke&#xa;--command cua.run&#xa;--params {runId, reqId, tool, args}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#DB2777;fontSize=11;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="48" y="325" width="175" height="78" as="geometry"/>
+    </mxCell>
+    <mxCell id="launcher" value="Launcher&#xa;run_cua_blackbox()&#xa;启动 server + CUA 子进程" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#4F46E5;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="312" y="118" width="175" height="66" as="geometry"/>
+    </mxCell>
+    <mxCell id="shim" value="openclaw shim&#xa;bin/openclaw&#xa;校验 node / command" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEDD5;strokeColor=#EA580C;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="312" y="210" width="175" height="66" as="geometry"/>
+    </mxCell>
+    <mxCell id="server" value="BridgeServer&#xa;localhost HTTP&#xa;/health /invoke" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCFBF1;strokeColor=#0F766E;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="312" y="300" width="175" height="66" as="geometry"/>
+    </mxCell>
+    <mxCell id="executor" value="BridgeExecutor + Protocol&#xa;parse_request / runId check&#xa;reqId cache + lock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#DC2626;fontSize=11;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="312" y="390" width="175" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="translator" value="ToolTranslator&#xa;mouse_click 等 tool&#xa;转 pyautogui 命令" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="312" y="480" width="175" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="desktop_env" value="DesktopEnv.controller&#xa;PythonController&#xa;execute_python_command" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="575" y="138" width="175" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="guest_server" value="VM Guest Server&#xa;OSWorld server API&#xa;screenshot / terminal / python" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="575" y="258" width="175" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="desktop_apps" value="虚拟机桌面&#xa;pyautogui 执行动作&#xa;Chrome / Writer / Apps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE4E6;strokeColor=#E11D48;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="575" y="378" width="175" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="eval" value="Evaluator + Artifacts&#xa;evaluate() / result.txt&#xa;traj / recording / report" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F4F5;strokeColor=#52525B;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="575" y="475" width="175" height="55" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_launch_cua" value="subprocess + env vars" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#EA580C;strokeWidth=1.8;dashed=1;dashPattern=5 3;exitX=0;exitY=0.45;entryX=1;entryY=0.45;fontSize=11;fontColor=#9A3412;" edge="1" parent="1" source="launcher" target="cua_cli">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_launch_server" value="start bridge" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#EA580C;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#9A3412;" edge="1" parent="1" source="launcher" target="server">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="400" y="194"/><mxPoint x="400" y="290"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_cua_loop" value="instruction + screenshots" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="cua_cli" target="cua_loop">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_loop_invoke" value="tool call JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#7C3AED;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#6D28D9;" edge="1" parent="1" source="cua_loop" target="cua_invoke">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_invoke_shim" value="CLI argv" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#7C3AED;strokeWidth=2;exitX=1;exitY=0.45;entryX=0;entryY=0.5;fontSize=11;fontColor=#6D28D9;" edge="1" parent="1" source="cua_invoke" target="shim">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="262" y="360"/><mxPoint x="262" y="243"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_shim_server" value="POST /invoke" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#7C3AED;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#6D28D9;" edge="1" parent="1" source="shim" target="server">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_server_executor" value="payload" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="server" target="executor">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_executor_translator" value="validate + map" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#059669;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#047857;" edge="1" parent="1" source="executor" target="translator">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_translator_env" value="pyautogui command" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=1;exitY=0.35;entryX=0;entryY=0.55;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="translator" target="desktop_env">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="535" y="498"/><mxPoint x="535" y="177"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_env_guest" value="HTTP controller API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="desktop_env" target="guest_server">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_guest_apps" value="execute in VM" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="guest_server" target="desktop_apps">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_apps_eval" value="task state" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#DC2626;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#B91C1C;" edge="1" parent="1" source="desktop_apps" target="eval">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_obs_back" value="tool result / screenshot" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#059669;strokeWidth=1.8;dashed=1;dashPattern=5 3;exitX=0;exitY=0.18;entryX=1;entryY=0.18;fontSize=11;fontColor=#047857;" edge="1" parent="1" source="desktop_env" target="executor">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="540" y="150"/><mxPoint x="540" y="403"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_response_cua" value="JSON response to CUA" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#059669;strokeWidth=1.8;dashed=1;dashPattern=5 3;exitX=0;exitY=0.78;entryX=1;entryY=0.78;fontSize=11;fontColor=#047857;" edge="1" parent="1" source="server" target="cua_loop">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="275" y="352"/><mxPoint x="275" y="272"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="legend" value="蓝=主调用链  紫=CUA 工具调用  橙=启动/注入  绿虚线=工具响应  红=评测闭环" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;fontSize=11;fontColor=#475569;spacing=6;" vertex="1" parent="1">
+      <mxGeometry x="105" y="558" width="590" height="28" as="geometry"/>
+    </mxCell>
+  </root>
+</mxGraphModel>

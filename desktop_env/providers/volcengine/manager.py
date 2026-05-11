@@ -5,7 +5,10 @@ import dotenv
 import time
 import volcenginesdkcore
 import volcenginesdkecs.models as ecs_models
+import volcenginesdkvpc.models as vpc_models
 from volcenginesdkecs.api import ECSApi
+from volcenginesdkcore.rest import ApiException
+from volcenginesdkvpc.api import VPCApi
 
 from desktop_env.providers.base import VMManager
 
@@ -39,6 +42,129 @@ VOLCENGINE_IMAGE_ID = os.getenv("VOLCENGINE_IMAGE_ID")
 VOLCENGINE_ZONE_ID = os.getenv("VOLCENGINE_ZONE_ID")
 VOLCENGINE_DEFAULT_PASSWORD = os.getenv("VOLCENGINE_DEFAULT_PASSWORD")
 
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value in (None, ""):
+        return default
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise EnvironmentError(f"{name} must be an integer.") from exc
+    if parsed <= 0:
+        raise EnvironmentError(f"{name} must be greater than 0.")
+    return parsed
+
+
+VOLCENGINE_SYSTEM_VOLUME_SIZE = _env_int("VOLCENGINE_SYSTEM_VOLUME_SIZE", 30)
+VOLCENGINE_EIP_RELEASE_WAIT_SECONDS = _env_int("VOLCENGINE_EIP_RELEASE_WAIT_SECONDS", 120)
+
+
+def _is_not_found_error(exc: Exception) -> bool:
+    return "NotFound" in str(exc) or "not exist" in str(exc)
+
+
+def _get_instance_eip_allocation_id(api_instance: ECSApi, instance_id: str) -> str | None:
+    try:
+        instance_info = api_instance.describe_instances(ecs_models.DescribeInstancesRequest(
+            instance_ids=[instance_id]
+        ))
+    except ApiException as exc:
+        if _is_not_found_error(exc):
+            logger.info(f"Instance {instance_id} no longer exists while checking EIP.")
+            return None
+        raise
+
+    instances = getattr(instance_info, "instances", None) or []
+    if not instances:
+        return None
+    eip_address = getattr(instances[0], "eip_address", None)
+    return getattr(eip_address, "allocation_id", None) if eip_address else None
+
+
+def _mark_eip_release_with_instance(vpc_client: VPCApi, allocation_id: str) -> None:
+    try:
+        vpc_client.modify_eip_address_attributes(vpc_models.ModifyEipAddressAttributesRequest(
+            allocation_id=allocation_id,
+            release_with_instance=True,
+        ))
+        logger.info(f"EIP {allocation_id} marked release_with_instance=True.")
+    except ApiException as exc:
+        if _is_not_found_error(exc):
+            logger.info(f"EIP {allocation_id} no longer exists while setting release_with_instance.")
+            return
+        logger.warning(f"Failed to mark EIP {allocation_id} release_with_instance=True: {exc}")
+
+
+def _describe_eip(vpc_client: VPCApi, allocation_id: str):
+    try:
+        response = vpc_client.describe_eip_addresses(vpc_models.DescribeEipAddressesRequest(
+            allocation_ids=[allocation_id],
+        ))
+    except ApiException as exc:
+        if _is_not_found_error(exc):
+            return None
+        raise
+    eips = getattr(response, "eip_addresses", None) or []
+    return eips[0] if eips else None
+
+
+def _wait_for_eip_release(vpc_client: VPCApi, allocation_id: str) -> None:
+    deadline = time.time() + VOLCENGINE_EIP_RELEASE_WAIT_SECONDS
+    last_status = None
+    while time.time() < deadline:
+        eip = _describe_eip(vpc_client, allocation_id)
+        if eip is None:
+            logger.info(f"EIP {allocation_id} has been released.")
+            return
+
+        last_status = getattr(eip, "status", None)
+        bound_instance_id = getattr(eip, "instance_id", None)
+        if not bound_instance_id:
+            try:
+                vpc_client.release_eip_address(vpc_models.ReleaseEipAddressRequest(
+                    allocation_id=allocation_id,
+                ))
+                logger.info(f"EIP {allocation_id} released explicitly.")
+                return
+            except ApiException as exc:
+                if _is_not_found_error(exc):
+                    logger.info(f"EIP {allocation_id} has already been released.")
+                    return
+                logger.warning(f"Failed to release EIP {allocation_id}; retrying: {exc}")
+
+        logger.info(
+            f"Waiting for EIP {allocation_id} to be released "
+            f"(status={last_status}, instance_id={bound_instance_id})..."
+        )
+        time.sleep(5)
+
+    logger.warning(
+        f"EIP {allocation_id} was not released within "
+        f"{VOLCENGINE_EIP_RELEASE_WAIT_SECONDS}s (last_status={last_status})."
+    )
+
+
+def _delete_instance_and_release_eip(api_instance: ECSApi, instance_id: str) -> None:
+    allocation_id = _get_instance_eip_allocation_id(api_instance, instance_id)
+    vpc_client = VPCApi()
+    if allocation_id:
+        _mark_eip_release_with_instance(vpc_client, allocation_id)
+
+    try:
+        api_instance.delete_instance(ecs_models.DeleteInstanceRequest(
+            instance_id=instance_id,
+        ))
+        logger.info(f"Instance {instance_id} has been deleted.")
+    except ApiException as exc:
+        if not _is_not_found_error(exc):
+            raise
+        logger.info(f"Instance {instance_id} has already been deleted.")
+
+    if allocation_id:
+        _wait_for_eip_release(vpc_client, allocation_id)
+
+
 def _allocate_vm(screen_size=(1920, 1080)):
     """分配火山引擎虚拟机"""
 
@@ -63,9 +189,7 @@ def _allocate_vm(screen_size=(1920, 1080)):
             signal_name = "SIGINT" if sig == signal.SIGINT else "SIGTERM"
             logger.warning(f"Received {signal_name} signal, terminating instance {instance_id}...")
             try:
-                api_instance.delete_instance(ecs_models.DeleteInstanceRequest(
-                    instance_id=instance_id,
-                ))
+                _delete_instance_and_release_eip(api_instance, instance_id)
                 logger.info(f"Successfully terminated instance {instance_id} after {signal_name}.")
             except Exception as cleanup_error:
                 logger.error(f"Failed to terminate instance {instance_id} after {signal_name}: {str(cleanup_error)}")
@@ -96,11 +220,12 @@ def _allocate_vm(screen_size=(1920, 1080)):
             eip_address=ecs_models.EipAddressForRunInstancesInput(
                 bandwidth_mbps = 5,
                 charge_type = "PayByTraffic",
+                release_with_instance = True,
             ),
             instance_name = f"osworld-{os.getpid()}-{int(time.time())}",
             volumes=[ecs_models.VolumeForRunInstancesInput(
                 volume_type="ESSD_PL0",
-                size=30,
+                size=VOLCENGINE_SYSTEM_VOLUME_SIZE,
             )],
             zone_id=VOLCENGINE_ZONE_ID,
             password = VOLCENGINE_DEFAULT_PASSWORD,  # 默认密码
@@ -153,17 +278,13 @@ def _allocate_vm(screen_size=(1920, 1080)):
         logger.warning("VM allocation interrupted by user (SIGINT).")
         if instance_id:
             logger.info(f"Terminating instance {instance_id} due to interruption.")
-            api_instance.delete_instance(ecs_models.DeleteInstanceRequest(
-                instance_id=instance_id,
-            ))
+            _delete_instance_and_release_eip(api_instance, instance_id)
         raise
     except Exception as e:
         logger.error(f"Failed to allocate VM: {e}", exc_info=True)
         if instance_id:
             logger.info(f"Terminating instance {instance_id} due to an error.")
-            api_instance.delete_instance(ecs_models.DeleteInstanceRequest(
-                instance_id=instance_id,
-            ))
+            _delete_instance_and_release_eip(api_instance, instance_id)
         raise
     finally:
         # Restore original signal handlers

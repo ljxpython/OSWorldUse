@@ -4,6 +4,7 @@ import platform
 import shlex
 import json
 import subprocess, signal
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Optional, Sequence
@@ -70,7 +71,7 @@ TIMEOUT = 1800  # seconds
 
 logger = app.logger
 recording_process = None  # fixme: this is a temporary solution for recording, need to be changed to support multiple-process
-recording_path = "/tmp/recording.mp4"
+recording_path = os.path.join(tempfile.gettempdir(), "osworld_recording.mp4")
 
 
 @app.route('/setup/execute', methods=['POST'])
@@ -1306,7 +1307,7 @@ def open_file():
         if is_file_path:
             # Handle file opening
             if platform.system() == "Windows":
-                os.startfile(path_obj)
+                _open_windows_file(path_obj)
             else:
                 open_cmd: str = "open" if platform.system() == "Darwin" else "xdg-open"
                 subprocess.Popen([open_cmd, str(path_obj)])
@@ -1336,8 +1337,14 @@ def open_file():
                     windows = gw.getWindowsWithTitle(file_name_without_ext)
 
                 if windows:
-                    # To be more specific, we can try to activate it
-                    windows[0].activate()
+                    # Windows activation can fail transiently even after the
+                    # target window exists. Treat the file as open and let the
+                    # benchmark continue; the next screenshot/action can still
+                    # recover focus if needed.
+                    try:
+                        windows[0].activate()
+                    except Exception as exc:
+                        logger.warning("Failed to activate window %s: %s", windows[0].title, exc)
                     window_found = True
                     break
             elif os_name == 'Linux':
@@ -1374,6 +1381,69 @@ def open_file():
 
     except Exception as e:
         return f"Failed to open {path}. Error: {e}", 500
+
+
+def _open_windows_file(path_obj: Path) -> None:
+    ext = path_obj.suffix.lower()
+    office_candidates = {
+        ".csv": [
+            r"C:\Program Files\LibreOffice\program\scalc.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".ods": [
+            r"C:\Program Files\LibreOffice\program\scalc.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".xls": [
+            r"C:\Program Files\LibreOffice\program\scalc.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".xlsm": [
+            r"C:\Program Files\LibreOffice\program\scalc.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".xlsx": [
+            r"C:\Program Files\LibreOffice\program\scalc.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".doc": [
+            r"C:\Program Files\LibreOffice\program\swriter.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".docx": [
+            r"C:\Program Files\LibreOffice\program\swriter.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".odt": [
+            r"C:\Program Files\LibreOffice\program\swriter.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".ppt": [
+            r"C:\Program Files\LibreOffice\program\simpress.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".pptx": [
+            r"C:\Program Files\LibreOffice\program\simpress.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+        ".odp": [
+            r"C:\Program Files\LibreOffice\program\simpress.exe",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+        ],
+    }
+    for candidate in office_candidates.get(ext, []):
+        if os.path.exists(candidate):
+            args = [candidate, "--norestore", "--nofirststartwizard", "--nologo", str(path_obj)]
+            subprocess.Popen(
+                args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            return
+    if ext in office_candidates:
+        logger.warning("LibreOffice handler for %s was not found; falling back to Windows default", ext)
+    os.startfile(path_obj)
 
 
 @app.route("/setup/activate_window", methods=['POST'])
@@ -1505,18 +1575,21 @@ def start_recording():
             logger.error(f"Error removing old recording file: {e}")
             return jsonify({'status': 'error', 'message': f'Failed to remove old recording file: {e}'}), 500
 
-    d = display.Display()
-    screen_width = d.screen().width_in_pixels
-    screen_height = d.screen().height_in_pixels
-
-    start_command = f"ffmpeg -y -f x11grab -draw_mouse 1 -s {screen_width}x{screen_height} -i :0.0 -c:v libx264 -r 30 {recording_path}"
+    try:
+        start_command = _recording_command()
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
     # Use stderr=PIPE to capture potential errors from ffmpeg
-    recording_process = subprocess.Popen(shlex.split(start_command),
-                                         stdout=subprocess.DEVNULL,
-                                         stderr=subprocess.PIPE,
-                                         text=True  # To get stderr as string
-                                         )
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if platform_name == "Windows" else 0
+    recording_process = subprocess.Popen(
+        start_command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        creationflags=flags,
+    )
 
     # Wait a couple of seconds to see if ffmpeg starts successfully
     try:
@@ -1533,6 +1606,59 @@ def start_recording():
         return jsonify({'status': 'success', 'message': 'Started recording successfully.'})
 
 
+def _recording_command() -> List[str]:
+    import shutil
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg is required for recording but was not found in PATH.")
+
+    if platform_name == "Windows":
+        return [
+            ffmpeg,
+            "-y",
+            "-f",
+            "gdigrab",
+            "-framerate",
+            "15",
+            "-draw_mouse",
+            "1",
+            "-i",
+            "desktop",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            recording_path,
+        ]
+
+    if platform_name == "Linux":
+        d = display.Display()
+        screen_width = d.screen().width_in_pixels
+        screen_height = d.screen().height_in_pixels
+        return [
+            ffmpeg,
+            "-y",
+            "-f",
+            "x11grab",
+            "-draw_mouse",
+            "1",
+            "-s",
+            f"{screen_width}x{screen_height}",
+            "-i",
+            ":0.0",
+            "-c:v",
+            "libx264",
+            "-r",
+            "30",
+            recording_path,
+        ]
+
+    raise RuntimeError(f"Recording is not supported on {platform_name}.")
+
+
 @app.route('/end_recording', methods=['POST'])
 def end_recording():
     global recording_process
@@ -1543,19 +1669,37 @@ def end_recording():
 
     error_output = ""
     try:
-        # Send SIGINT for a graceful shutdown, allowing ffmpeg to finalize the file.
-        recording_process.send_signal(signal.SIGINT)
-        # Wait for ffmpeg to terminate. communicate() gets output and waits.
+        # Ask ffmpeg to stop gracefully so it can finalize the MP4 container.
+        if recording_process.stdin:
+            recording_process.stdin.write("q\n")
+            recording_process.stdin.flush()
         _, error_output = recording_process.communicate(timeout=15)
     except subprocess.TimeoutExpired:
         logger.error("ffmpeg did not respond to SIGINT, killing the process.")
-        recording_process.kill()
-        # After killing, communicate to get any remaining output.
-        _, error_output = recording_process.communicate()
+        recording_process.terminate()
+        try:
+            _, error_output = recording_process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            recording_process.kill()
+            _, error_output = recording_process.communicate()
         recording_process = None
         return jsonify({
             'status': 'error',
             'message': f'Recording process was unresponsive and had to be killed. Stderr: {error_output}'
+        }), 500
+    except Exception:
+        try:
+            if platform_name != "Windows":
+                recording_process.send_signal(signal.SIGINT)
+            else:
+                recording_process.terminate()
+        except Exception:
+            pass
+        _, error_output = recording_process.communicate()
+        recording_process = None
+        return jsonify({
+            'status': 'error',
+            'message': f'Recording process failed to stop cleanly. Stderr: {error_output}'
         }), 500
 
     recording_process = None  # Clear the process from global state

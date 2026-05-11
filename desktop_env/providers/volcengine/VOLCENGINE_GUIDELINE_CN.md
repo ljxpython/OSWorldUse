@@ -27,6 +27,9 @@ VOLCENGINE_SUBNET_ID=subnet-xxxxxxxxx
 VOLCENGINE_SECURITY_GROUP_ID=sg-xxxxxxxxx
 VOLCENGINE_ZONE_ID=zone-xxxxxxxxx
 VOLCENGINE_DEFAULT_PASSWORD=your_default_password
+
+# 可选：系统盘大小，单位 GB。Ubuntu OSWorld 镜像通常用 30，Windows 镜像通常至少用 60。
+VOLCENGINE_SYSTEM_VOLUME_SIZE=30
 ```
 
 ## 所需火山引擎资源

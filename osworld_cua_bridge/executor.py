@@ -236,6 +236,9 @@ class CuaBridgeExecutor:
         )
 
     def _execute_gui_tool(self, req: BridgeRequest) -> dict[str, Any]:
+        if req.tool in {"shell_exec", "shell_sh"}:
+            return self._execute_shell_tool(req, shell=req.tool == "shell_sh")
+
         try:
             if self._screen_size is None:
                 self._screen_size = self._resolve_screen_size()
@@ -248,7 +251,7 @@ class CuaBridgeExecutor:
             if req.tool == "clipboard_type":
                 command = self._clipboard_command(req.args)
             elif req.tool == "app_open":
-                command = self._app_open_command(req.args)
+                command = self._app_open_command(req.args, platform=str(getattr(self.env, "os_type", "")))
             else:
                 command = translate_tool_to_pyautogui(req.tool, mapped_args)
         except ToolTranslationError as exc:
@@ -278,6 +281,41 @@ class CuaBridgeExecutor:
                 "reqId": req.req_id,
                 "output": tool_output(req.tool, req.args),
                 "mappedArgs": mapped_args,
+                "command": command,
+                "controllerResult": result,
+            }
+        )
+
+    def _execute_shell_tool(self, req: BridgeRequest, *, shell: bool) -> dict[str, Any]:
+        command = self._shell_command(req.args, shell=shell)
+        result = self.env.controller.execute_python_command(command)
+        if result is None:
+            return error("CONTROLLER_EXEC_FAILED", "controller returned empty result", {"tool": req.tool, "command": command})
+        if isinstance(result, dict) and result.get("status") == "error":
+            return error(
+                "CONTROLLER_EXEC_FAILED",
+                str(result.get("error") or result.get("message") or "command failed"),
+                {"result": result, "command": command},
+            )
+
+        output = ""
+        shell_result: dict[str, Any] | None = None
+        if isinstance(result, dict):
+            output = str(result.get("output") or "").strip()
+            if output:
+                try:
+                    shell_result = json.loads(output)
+                except json.JSONDecodeError:
+                    shell_result = None
+
+        return ok(
+            {
+                "type": "tool_result",
+                "tool": req.tool,
+                "runId": req.run_id,
+                "reqId": req.req_id,
+                "output": output,
+                "shellResult": shell_result,
                 "command": command,
                 "controllerResult": result,
             }
@@ -402,7 +440,63 @@ class CuaBridgeExecutor:
         )
 
     @staticmethod
-    def _app_open_command(args: dict[str, Any]) -> str:
+    def _shell_command(args: dict[str, Any], *, shell: bool) -> str:
+        cmd = args.get("cmd", args.get("command"))
+        if not cmd:
+            raise ToolTranslationError("shell command needs cmd or command")
+        argv = args.get("args", [])
+        cwd = args.get("cwd")
+        timeout = args.get("timeout", args.get("timeout_seconds", 30))
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError):
+            timeout = 30.0
+        timeout = max(1.0, min(timeout, 120.0))
+        return (
+            "import json, os, subprocess\n"
+            f"_cua_cmd = {json.dumps(cmd, ensure_ascii=False)!r}\n"
+            f"_cua_args = {json.dumps(argv, ensure_ascii=False)!r}\n"
+            f"_cua_cwd = {json.dumps(cwd, ensure_ascii=False)!r}\n"
+            f"_cua_shell = {bool(shell)!r}\n"
+            f"_cua_timeout = {timeout!r}\n"
+            "_cua_cmd = json.loads(_cua_cmd)\n"
+            "_cua_args = json.loads(_cua_args)\n"
+            "_cua_cwd = json.loads(_cua_cwd)\n"
+            "if _cua_cwd and not os.path.isdir(str(_cua_cwd)):\n"
+            "    _cua_cwd = None\n"
+            "if isinstance(_cua_cmd, list):\n"
+            "    _cua_command = [str(item) for item in _cua_cmd]\n"
+            "elif _cua_shell:\n"
+            "    _cua_command = str(_cua_cmd)\n"
+            "    if isinstance(_cua_args, list) and _cua_args:\n"
+            "        _cua_command += ' ' + ' '.join(str(item) for item in _cua_args)\n"
+            "    elif _cua_args:\n"
+            "        _cua_command += ' ' + str(_cua_args)\n"
+            "elif isinstance(_cua_args, list):\n"
+            "    _cua_command = [str(_cua_cmd)] + [str(item) for item in _cua_args]\n"
+            "else:\n"
+            "    _cua_command = [str(_cua_cmd)]\n"
+            "try:\n"
+            "    _cua_result = subprocess.run(\n"
+            "        _cua_command,\n"
+            "        shell=_cua_shell,\n"
+            "        cwd=_cua_cwd,\n"
+            "        text=True,\n"
+            "        capture_output=True,\n"
+            "        timeout=_cua_timeout,\n"
+            "    )\n"
+            "    _cua_payload = {\n"
+            "        'returncode': _cua_result.returncode,\n"
+            "        'stdout': _cua_result.stdout,\n"
+            "        'stderr': _cua_result.stderr,\n"
+            "    }\n"
+            "except Exception as exc:\n"
+            "    _cua_payload = {'returncode': None, 'stdout': '', 'stderr': f'{type(exc).__name__}: {exc}'}\n"
+            "print(json.dumps(_cua_payload, ensure_ascii=False))\n"
+        )
+
+    @staticmethod
+    def _app_open_command(args: dict[str, Any], platform: str = "") -> str:
         app = str(args.get("app") or args.get("bundle_id") or "").strip()
         if not app:
             raise ToolTranslationError("app_open needs app or bundle_id")
@@ -412,6 +506,106 @@ class CuaBridgeExecutor:
             raise ToolTranslationError("wait_ms must be a number") from exc
         app_repr = repr(app)
         wait_seconds = wait_ms / 1000.0
+        if platform.lower() == "windows":
+            return CuaBridgeExecutor._windows_app_open_command(app_repr, wait_seconds)
+        return CuaBridgeExecutor._linux_app_open_command(app_repr, wait_seconds)
+
+    @staticmethod
+    def _windows_app_open_command(app_repr: str, wait_seconds: float) -> str:
+        return (
+            "import json, os, shutil, subprocess, time\n"
+            f"_cua_app = {app_repr}\n"
+            f"_cua_wait_seconds = {wait_seconds!r}\n"
+            "_cua_errors = []\n"
+            "_cua_aliases = {\n"
+            "    'chrome': [r'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'],\n"
+            "    'google chrome': [r'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'],\n"
+            "    'vlc': [r'C:\\Program Files\\VideoLAN\\VLC\\vlc.exe'],\n"
+            "    'vlc media player': [r'C:\\Program Files\\VideoLAN\\VLC\\vlc.exe'],\n"
+            "    'libreoffice': [r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'libreoffice calc': [r'C:\\Program Files\\LibreOffice\\program\\scalc.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'libreoffice writer': [r'C:\\Program Files\\LibreOffice\\program\\swriter.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'libreoffice impress': [r'C:\\Program Files\\LibreOffice\\program\\simpress.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'calc': [r'C:\\Program Files\\LibreOffice\\program\\scalc.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'excel': [r'C:\\Program Files\\LibreOffice\\program\\scalc.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'microsoft excel': [r'C:\\Program Files\\LibreOffice\\program\\scalc.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'writer': [r'C:\\Program Files\\LibreOffice\\program\\swriter.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'word': [r'C:\\Program Files\\LibreOffice\\program\\swriter.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'microsoft word': [r'C:\\Program Files\\LibreOffice\\program\\swriter.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'impress': [r'C:\\Program Files\\LibreOffice\\program\\simpress.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'powerpoint': [r'C:\\Program Files\\LibreOffice\\program\\simpress.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'microsoft powerpoint': [r'C:\\Program Files\\LibreOffice\\program\\simpress.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'ppt': [r'C:\\Program Files\\LibreOffice\\program\\simpress.exe', r'C:\\Program Files\\LibreOffice\\program\\soffice.exe'],\n"
+            "    'notepad': ['notepad.exe'],\n"
+            "    'explorer': ['explorer.exe'],\n"
+            "}\n"
+            "\n"
+            "def _cua_sleep():\n"
+            "    if _cua_wait_seconds > 0:\n"
+            "        time.sleep(_cua_wait_seconds)\n"
+            "\n"
+            "def _cua_success(strategy, **extra):\n"
+            "    _cua_sleep()\n"
+            "    payload = {'event': 'app_open', 'os': 'windows', 'strategy': strategy, **extra}\n"
+            "    print(json.dumps(payload, ensure_ascii=False))\n"
+            "\n"
+            "def _cua_existing(path):\n"
+            "    expanded = os.path.expandvars(os.path.expanduser(path))\n"
+            "    return expanded if os.path.exists(expanded) else None\n"
+            "\n"
+            "def _cua_candidates(app):\n"
+            "    lowered = app.strip().lower()\n"
+            "    candidates = []\n"
+            "    direct = _cua_existing(app)\n"
+            "    if direct:\n"
+            "        candidates.append(direct)\n"
+            "    candidates.extend(_cua_aliases.get(lowered, []))\n"
+            "    for probe in (app, app + '.exe'):\n"
+            "        resolved = shutil.which(probe)\n"
+            "        if resolved:\n"
+            "            candidates.append(resolved)\n"
+            "    deduped = []\n"
+            "    seen = set()\n"
+            "    for item in candidates:\n"
+            "        if item and item.lower() not in seen:\n"
+            "            deduped.append(item)\n"
+            "            seen.add(item.lower())\n"
+            "    return deduped\n"
+            "\n"
+            "def _cua_launch_args(executable):\n"
+            "    args = [executable]\n"
+            "    if os.path.basename(str(executable)).lower() in {'soffice.exe', 'scalc.exe', 'swriter.exe', 'simpress.exe'}:\n"
+            "        args.extend(['--norestore', '--nofirststartwizard', '--nologo'])\n"
+            "    return args\n"
+            "\n"
+            "for candidate in _cua_candidates(_cua_app):\n"
+            "    try:\n"
+            "        executable = _cua_existing(candidate) or shutil.which(candidate) or candidate\n"
+            "        subprocess.Popen(_cua_launch_args(executable), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))\n"
+            "        _cua_success('popen', app=_cua_app, executable=executable)\n"
+            "        raise SystemExit(0)\n"
+            "    except Exception as exc:\n"
+            "        _cua_errors.append(f'popen {candidate}: {str(exc)[:160]}')\n"
+            "\n"
+            "try:\n"
+            "    os.startfile(_cua_app)\n"
+            "    _cua_success('startfile', app=_cua_app)\n"
+            "    raise SystemExit(0)\n"
+            "except Exception as exc:\n"
+            "    _cua_errors.append(f'startfile: {str(exc)[:160]}')\n"
+            "\n"
+            "try:\n"
+            "    subprocess.Popen(['cmd', '/c', 'start', '', _cua_app], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))\n"
+            "    _cua_success('cmd-start', app=_cua_app)\n"
+            "    raise SystemExit(0)\n"
+            "except Exception as exc:\n"
+            "    _cua_errors.append(f'cmd-start: {str(exc)[:160]}')\n"
+            "\n"
+            "raise RuntimeError('Windows app_open failed: ' + ' | '.join(_cua_errors))\n"
+        )
+
+    @staticmethod
+    def _linux_app_open_command(app_repr: str, wait_seconds: float) -> str:
         return (
             "import json, os, shutil, subprocess, time\n"
             f"_cua_app = {app_repr}\n"

@@ -174,19 +174,20 @@ def run_single_example_cua_blackbox(env, example, max_steps, instruction, args, 
     time.sleep(getattr(args, "env_ready_sleep", 60))
 
     recording_started = False
-    try:
-        env.controller.start_recording()
-        recording_started = True
-    except Exception as exc:
-        runtime_logger.exception("Failed to start recording: %s", exc)
-        write_failure(
-            example_result_dir,
-            RECORDING_FAILED,
-            str(exc),
-            stage="recording_start",
-            details={"example_id": example.get("id")},
-        )
-        _sync_failure_metadata(example_result_dir)
+    if not getattr(args, "disable_recording", False):
+        try:
+            env.controller.start_recording()
+            recording_started = True
+        except Exception as exc:
+            runtime_logger.exception("Failed to start recording: %s", exc)
+            write_failure(
+                example_result_dir,
+                RECORDING_FAILED,
+                str(exc),
+                stage="recording_start",
+                details={"example_id": example.get("id")},
+            )
+            _sync_failure_metadata(example_result_dir)
 
     cua_result = None
     try:

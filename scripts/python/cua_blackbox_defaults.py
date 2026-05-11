@@ -8,6 +8,7 @@ DEFAULT_CASES_DIR = os.path.join(ROOT_DIR, "evaluation_examples", "examples")
 CUA_BLACKBOX_DIR = os.path.join(ROOT_DIR, "evaluation_examples", "cua_blackbox")
 CUA_BLACKBOX_CASES_DIR = os.path.join(CUA_BLACKBOX_DIR, "cases")
 CUA_BLACKBOX_META_PATH = os.path.join(CUA_BLACKBOX_DIR, "suites", "regression.json")
+CUA_BLACKBOX_WINDOWS_SMOKE_META_PATH = os.path.join(CUA_BLACKBOX_DIR, "suites", "windows_smoke.json")
 LEGACY_CUA_REGRESSION_META_PATH = os.path.join(
     ROOT_DIR, "evaluation_examples", "test_cua_regression.json"
 )
@@ -17,3 +18,7 @@ def default_cua_regression_meta_path() -> str:
     if os.path.exists(CUA_BLACKBOX_META_PATH):
         return CUA_BLACKBOX_META_PATH
     return LEGACY_CUA_REGRESSION_META_PATH
+
+
+def default_cua_windows_smoke_meta_path() -> str:
+    return CUA_BLACKBOX_WINDOWS_SMOKE_META_PATH

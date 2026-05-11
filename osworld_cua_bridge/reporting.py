@@ -23,6 +23,8 @@ SUMMARY_METADATA_FIELDS = (
     "cua_repo_root",
     "openclaw_bin",
     "provider_name",
+    "os_type",
+    "disable_recording",
     "num_envs",
     "max_steps",
     "test_all_meta_path",

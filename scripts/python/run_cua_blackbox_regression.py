@@ -10,10 +10,14 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
 from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
-from scripts.python.cua_blackbox_defaults import default_cua_regression_meta_path
+from scripts.python.cua_blackbox_defaults import (
+    default_cua_regression_meta_path,
+    default_cua_windows_smoke_meta_path,
+)
 
 RUNNER = os.path.join(ROOT_DIR, "scripts", "python", "run_multienv_cua_blackbox.py")
 DEFAULT_META_PATH = default_cua_regression_meta_path()
+DEFAULT_WINDOWS_META_PATH = default_cua_windows_smoke_meta_path()
 
 
 def config() -> argparse.Namespace:
@@ -21,9 +25,11 @@ def config() -> argparse.Namespace:
     parser.add_argument("--provider_name", type=str, default="vmware")
     parser.add_argument("--path_to_vm", type=str, default=None)
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--os_type", type=str, default="Ubuntu", choices=["Ubuntu", "Windows", "Darwin"])
     parser.add_argument("--model", type=str, default="cua-blackbox-regression")
     parser.add_argument("--result_dir", type=str, default="./results_cua_regression")
-    parser.add_argument("--test_all_meta_path", type=str, default=DEFAULT_META_PATH)
+    parser.add_argument("--test_all_meta_path", type=str, default=None)
+    parser.add_argument("--test_config_examples_dir", type=str, default=None)
     parser.add_argument("--domain", type=str, default="all")
     parser.add_argument("--example_id", type=str, default=None)
     parser.add_argument("--num_envs", type=int, default=1)
@@ -44,8 +50,12 @@ def config() -> argparse.Namespace:
     parser.add_argument("--openclaw_bin", type=str, default=_env_str("OSWORLD_OPENCLAW_BIN"))
     parser.add_argument("--log_level", type=str, default="INFO")
     parser.add_argument("--dry_run", action="store_true")
+    parser.add_argument("--disable_recording", action="store_true")
+    parser.add_argument("--enable_recording", action="store_true")
     parser.add_argument("--cua_extra_args", nargs=argparse.REMAINDER, default=None)
     args = parser.parse_args()
+    if args.test_all_meta_path is None:
+        args.test_all_meta_path = DEFAULT_WINDOWS_META_PATH if args.os_type == "Windows" else DEFAULT_META_PATH
     if not args.cua_config_path:
         parser.error("CUA config path is required. Set --cua_config_path or OSWORLD_CUA_CONFIG_PATH.")
     return args
@@ -82,6 +92,8 @@ def build_command(args: argparse.Namespace) -> list[str]:
         "screenshot",
         "--test_all_meta_path",
         args.test_all_meta_path,
+        "--os_type",
+        args.os_type,
         "--model",
         args.model,
         "--result_dir",
@@ -112,6 +124,8 @@ def build_command(args: argparse.Namespace) -> list[str]:
 
     if args.path_to_vm:
         command.extend(["--path_to_vm", args.path_to_vm])
+    if args.test_config_examples_dir:
+        command.extend(["--test_config_examples_dir", args.test_config_examples_dir])
     if args.headless:
         command.append("--headless")
     if args.domain != "all":
@@ -130,6 +144,10 @@ def build_command(args: argparse.Namespace) -> list[str]:
         command.extend(["--cua_version", args.cua_version])
     if args.openclaw_bin:
         command.extend(["--openclaw_bin", args.openclaw_bin])
+    if args.disable_recording:
+        command.append("--disable_recording")
+    if args.enable_recording:
+        command.append("--enable_recording")
     if args.cua_extra_args:
         command.append("--cua_extra_args")
         command.extend(args.cua_extra_args)

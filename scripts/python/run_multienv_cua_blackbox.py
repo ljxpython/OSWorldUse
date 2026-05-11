@@ -54,6 +54,12 @@ def config() -> argparse.Namespace:
     parser.add_argument("--settle_sleep", type=float, default=20)
 
     parser.add_argument("--test_config_base_dir", type=str, default="evaluation_examples")
+    parser.add_argument(
+        "--test_config_examples_dir",
+        type=str,
+        default=None,
+        help="Directory that contains OSWorld example configs. Defaults to examples_windows for Windows and examples otherwise.",
+    )
     parser.add_argument("--cua_cases_dir", type=str, default=CUA_BLACKBOX_CASES_DIR)
     parser.add_argument("--domain", type=str, default="all")
     parser.add_argument("--example_id", type=str, default=None, help="Run a single example id within the selected domain or all domains")
@@ -77,14 +83,21 @@ def config() -> argparse.Namespace:
         "--provider_name",
         type=str,
         default="aws",
-        choices=["aws", "virtualbox", "vmware", "docker", "azure"],
+        choices=["aws", "virtualbox", "vmware", "docker", "azure", "aliyun", "volcengine", "remote"],
     )
     parser.add_argument("--client_password", type=str, default="")
+    parser.add_argument(
+        "--os_type",
+        type=str,
+        default="Ubuntu",
+        choices=["Ubuntu", "Windows", "Darwin"],
+        help="Target desktop OS type passed to DesktopEnv and CUA.",
+    )
     parser.add_argument("--screen_width", type=int, default=1920)
     parser.add_argument("--screen_height", type=int, default=1080)
     parser.add_argument("--adapter_version", type=str, default="blackbox-v1")
     parser.add_argument("--bridge_protocol_version", type=str, default="bridge-v1")
-    parser.add_argument("--eval_profile", type=str, default="ubuntu-cua-blackbox-bridge-v1")
+    parser.add_argument("--eval_profile", type=str, default=None)
     parser.add_argument("--cua_version", type=str, default=_env_str("OSWORLD_CUA_VERSION"))
 
     parser.add_argument("--cua_bin", type=str, default=_env_str("OSWORLD_CUA_BIN"), help="Path to cua binary; defaults to PATH cua or CUA dist CLI")
@@ -97,8 +110,29 @@ def config() -> argparse.Namespace:
     parser.add_argument("--cua_timeout_grace_seconds", type=float, default=_env_float("OSWORLD_CUA_TIMEOUT_GRACE_SECONDS", 60))
     parser.add_argument("--openclaw_bin", type=str, default=_env_str("OSWORLD_OPENCLAW_BIN"))
     parser.add_argument("--cua_extra_args", nargs=argparse.REMAINDER, default=None)
+    parser.add_argument("--dry_run", action="store_true", help="Validate task selection and case paths without starting environments.")
+    parser.add_argument("--disable_recording", action="store_true", help="Skip VM screen recording during CUA runs.")
+    parser.add_argument("--enable_recording", action="store_true", help="Force recording even when the OS default disables it.")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.eval_profile is None:
+        args.eval_profile = _default_eval_profile(args.os_type)
+    if args.enable_recording:
+        args.disable_recording = False
+    elif not args.disable_recording and args.os_type == "Windows":
+        args.disable_recording = True
+    return args
+
+
+def _default_eval_profile(os_type: str) -> str:
+    return f"{os_type.lower()}-cua-blackbox-bridge-v1"
+
+
+def _examples_dir(args: argparse.Namespace) -> str:
+    if args.test_config_examples_dir:
+        return args.test_config_examples_dir
+    dirname = "examples_windows" if args.os_type == "Windows" else "examples"
+    return os.path.join(args.test_config_base_dir, dirname)
 
 
 def _env_str(name: str, default: str | None = None) -> str | None:
@@ -177,7 +211,7 @@ def run_env_tasks(task_queue, args: argparse.Namespace, shared_scores: list):
             snapshot_name=_snapshot_name(args),
             screen_size=screen_size,
             headless=args.headless,
-            os_type="Ubuntu",
+            os_type=args.os_type,
             require_a11y_tree=False,
             enable_proxy=True,
             client_password=args.client_password,
@@ -195,7 +229,7 @@ def run_env_tasks(task_queue, args: argparse.Namespace, shared_scores: list):
                 config_file = resolve_case_path(
                     domain,
                     example_id,
-                    cases_dir=os.path.join(args.test_config_base_dir, "examples"),
+                    cases_dir=_examples_dir(args),
                     cua_cases_dir=args.cua_cases_dir,
                 )
                 with open(config_file, "r", encoding="utf-8") as file:
@@ -237,17 +271,18 @@ def run_env_tasks(task_queue, args: argparse.Namespace, shared_scores: list):
                             stage="task_run",
                             details={"domain": domain, "example_id": example_id},
                         )
-                    try:
-                        env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
-                    except Exception as rec_exc:
-                        logger.error("Failed to end recording: %s", rec_exc)
-                        write_failure(
-                            example_result_dir,
-                            RECORDING_FAILED,
-                            str(rec_exc),
-                            stage="recording_end",
-                            details={"domain": domain, "example_id": example_id},
-                        )
+                    if not args.disable_recording:
+                        try:
+                            env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+                        except Exception as rec_exc:
+                            logger.error("Failed to end recording: %s", rec_exc)
+                            write_failure(
+                                example_result_dir,
+                                RECORDING_FAILED,
+                                str(rec_exc),
+                                stage="recording_end",
+                                details={"domain": domain, "example_id": example_id},
+                            )
                     with open(os.path.join(example_result_dir, "traj.jsonl"), "a", encoding="utf-8") as file:
                         file.write(json.dumps({"Error": f"{domain}/{example_id} - {exc}"}, ensure_ascii=False))
                         file.write("\n")
@@ -359,6 +394,24 @@ def generate_summary(args: argparse.Namespace, selected_task_set: dict) -> dict:
     return summary
 
 
+def dry_run(args: argparse.Namespace, selected_task_set: dict) -> None:
+    logger.info("Dry run args: %s", args)
+    examples_dir = _examples_dir(args)
+    all_tasks = distribute_tasks(selected_task_set)
+    logger.info("Dry run total tasks: %d", len(all_tasks))
+    logger.info("Dry run examples dir: %s", examples_dir)
+    for domain, example_id in all_tasks:
+        config_file = resolve_case_path(
+            domain,
+            example_id,
+            cases_dir=examples_dir,
+            cua_cases_dir=args.cua_cases_dir,
+        )
+        if not os.path.exists(config_file):
+            raise FileNotFoundError(f"case config not found: {domain}/{example_id} -> {config_file}")
+        logger.info("Resolved %s/%s -> %s", domain, example_id, config_file)
+
+
 def test(args: argparse.Namespace, test_all_meta: dict) -> None:
     global processes
     logger.info("Args: %s", args)
@@ -408,6 +461,9 @@ if __name__ == "__main__":
     with open(args.test_all_meta_path, "r", encoding="utf-8") as file:
         test_all_meta = json.load(file)
     selected_task_set = filter_examples(test_all_meta, args.domain, args.example_id)
+    if args.dry_run:
+        dry_run(args, selected_task_set)
+        sys.exit(0)
     test_file_list = get_unfinished(
         args.action_space,
         args.model,

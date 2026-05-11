@@ -162,6 +162,23 @@ def check_tool_translator() -> None:
     hotkey = translate_tool_to_pyautogui("hotkey", {"keys": ["command", "l"]})
     assert hotkey == "pyautogui.hotkey('ctrl', 'l')"
 
+    horizontal_drag = map_args_to_screen(
+        "mouse_drag",
+        {"fromX": 170, "fromY": 455, "toX": 565},
+        screen_size=(1920, 1080),
+        normalized_input=False,
+    )
+    assert horizontal_drag == {"fromX": 170, "fromY": 455, "toX": 565, "toY": 455}
+    assert "pyautogui.dragTo(565, 455" in translate_tool_to_pyautogui("mouse_drag", horizontal_drag)
+
+    vertical_drag = map_args_to_screen(
+        "mouse_drag",
+        {"fromX": 760, "fromY": 650, "toY": 700},
+        screen_size=(1920, 1080),
+        normalized_input=False,
+    )
+    assert vertical_drag == {"fromX": 760, "fromY": 650, "toX": 760, "toY": 700}
+
 
 def check_bridge_protocol(result_dir: str) -> None:
     _, executor = _make_executor(result_dir)
@@ -188,9 +205,9 @@ def check_bridge_protocol(result_dir: str) -> None:
     assert bad["ok"] is False
     assert bad["error"]["code"] == "BAD_REQUEST"
 
-    disabled = _request(executor, "bad-tool-001", "shell_exec", {"cmd": "pwd"})
-    assert disabled["ok"] is False
-    assert disabled["error"]["code"] == "UNSUPPORTED_TOOL"
+    shell = _assert_ok(_request(executor, "shell-001", "shell_exec", {"cmd": "pwd"}))
+    assert shell["tool"] == "shell_exec"
+    assert "subprocess.run" in shell["command"]
 
 
 def check_bridge_actions(result_dir: str) -> None:
@@ -210,6 +227,10 @@ def check_bridge_actions(result_dir: str) -> None:
 
     _assert_ok(_request(executor, "key-001", "key_press", {"key": "Return"}))
     assert "pyautogui.press('enter')" in env.controller.commands[-1]
+
+    _assert_ok(_request(executor, "drag-001", "mouse_drag", {"fromX": 100, "fromY": 200, "toX": 300}))
+    assert "pyautogui.moveTo(192, 216)" in env.controller.commands[-1]
+    assert "pyautogui.dragTo(576, 216" in env.controller.commands[-1]
 
     _assert_ok(_request(executor, "done-001", "done", {"reason": "smoke"}))
     assert executor.done is True
@@ -374,6 +395,96 @@ def check_launcher_timeout_classification(result_dir: str) -> None:
     assert result.failure_type == CUA_TIMEOUT
     failure = read_failure_summary(case_dir)
     assert failure["primary_failure_type"] == CUA_TIMEOUT
+
+
+def check_launcher_stdout_failure_classification(result_dir: str) -> None:
+    case_dir = os.path.join(result_dir, "launcher_stdout_failure")
+    os.makedirs(case_dir, exist_ok=True)
+    config_path = os.path.join(case_dir, "local.json")
+    with open(config_path, "w", encoding="utf-8") as file:
+        json.dump({"agent": {}, "coords": {"normalizedInput": True}}, file)
+
+    fake_cua = os.path.join(case_dir, "fake-cua-stdout-failure")
+    with open(fake_cua, "w", encoding="utf-8") as file:
+        file.write("#!/usr/bin/env bash\n")
+        file.write("echo 'Task failed: max_step_duration_exceeded: reached max_step_duration_ms=1'\n")
+        file.write("exit 0\n")
+    os.chmod(fake_cua, 0o755)
+
+    args = SimpleNamespace(
+        max_steps=1,
+        cua_max_duration_ms=0,
+        cua_max_step_duration_ms=0,
+        cua_timeout_grace_seconds=0.1,
+        cua_config_path=config_path,
+        cua_bin=fake_cua,
+        cua_repo_root=ROOT_DIR,
+        cua_runs_dir=None,
+        cua_node_id="stdout-failure-smoke-node",
+        screen_width=1920,
+        screen_height=1080,
+        cua_extra_args=None,
+    )
+    result = run_cua_blackbox(
+        env=FakeEnv(),
+        example={"id": "launcher-stdout-failure"},
+        instruction="this reports failure but exits zero",
+        args=args,
+        example_result_dir=case_dir,
+    )
+    assert result.exit_code == 0
+    assert result.failure_type == CUA_TIMEOUT
+    failure = read_failure_summary(case_dir)
+    assert failure["primary_failure_type"] == CUA_TIMEOUT
+    with open(os.path.join(case_dir, "cua_meta.json"), encoding="utf-8") as file:
+        meta = json.load(file)
+    assert meta["failure_type"] == CUA_TIMEOUT
+
+
+def check_launcher_stdout_done_terminal(result_dir: str) -> None:
+    case_dir = os.path.join(result_dir, "launcher_stdout_done")
+    os.makedirs(case_dir, exist_ok=True)
+    config_path = os.path.join(case_dir, "local.json")
+    with open(config_path, "w", encoding="utf-8") as file:
+        json.dump({"agent": {}, "coords": {"normalizedInput": True}}, file)
+
+    fake_cua = os.path.join(case_dir, "fake-cua-stdout-done")
+    with open(fake_cua, "w", encoding="utf-8") as file:
+        file.write("#!/usr/bin/env bash\n")
+        file.write("echo '  action: done  args: {\"reason\":\"smoke complete\"}'\n")
+        file.write("sleep 10\n")
+    os.chmod(fake_cua, 0o755)
+
+    args = SimpleNamespace(
+        max_steps=10,
+        cua_max_duration_ms=5000,
+        cua_max_step_duration_ms=0,
+        cua_timeout_grace_seconds=0.1,
+        cua_config_path=config_path,
+        cua_bin=fake_cua,
+        cua_repo_root=ROOT_DIR,
+        cua_runs_dir=None,
+        cua_node_id="stdout-done-smoke-node",
+        screen_width=1920,
+        screen_height=1080,
+        cua_extra_args=None,
+    )
+    started = time.time()
+    result = run_cua_blackbox(
+        env=FakeEnv(),
+        example={"id": "launcher-stdout-done"},
+        instruction="this reports done and then hangs",
+        args=args,
+        example_result_dir=case_dir,
+    )
+    assert time.time() - started < 5, "stdout done did not stop the CUA process promptly"
+    assert result.exit_code == 0
+    assert result.failure_type is None
+    assert result.stopped_by_stdout_done is True
+    with open(os.path.join(case_dir, "cua_meta.json"), encoding="utf-8") as file:
+        meta = json.load(file)
+    assert meta["failure_type"] is None
+    assert meta["stopped_by_stdout_done"] is True
 
 
 def check_evaluate_failure_classification(result_dir: str) -> None:
@@ -663,15 +774,17 @@ def main() -> int:
         run_check("SMK-008", "openclaw shim and structured errors", lambda: check_openclaw_shim(result_dir)),
         run_check("SMK-009", "launcher failure classification", lambda: check_launcher_failure_classification(result_dir)),
         run_check("SMK-010", "launcher timeout classification", lambda: check_launcher_timeout_classification(result_dir)),
-        run_check("SMK-011", "evaluate failure classification", lambda: check_evaluate_failure_classification(result_dir)),
-        run_check("SMK-012", "summary totals and metadata", lambda: check_summary_totals(result_dir)),
-        run_check("SMK-013", "summary domain and csv outputs", lambda: check_summary_domain_and_csv(result_dir)),
-        run_check("SMK-014", "summary rebuild cli and failure rollup", lambda: check_summary_rebuild_cli(result_dir)),
-        run_check("SMK-015", "app_open linux strategy", lambda: check_app_open_linux_strategy(result_dir)),
-        run_check("SMK-016", "bridge busy error classification", lambda: check_bridge_busy(result_dir)),
-        run_check("SMK-017", "get_cursor_position bridge tool", lambda: check_bridge_protocol(result_dir)),
-        run_check("SMK-018", "unified blackbox report generation", lambda: check_report_generation(result_dir)),
-        run_check("SMK-019", "read-only report server helpers", lambda: check_report_server_helpers(result_dir)),
+        run_check("SMK-011", "launcher stdout failure classification", lambda: check_launcher_stdout_failure_classification(result_dir)),
+        run_check("SMK-012", "evaluate failure classification", lambda: check_evaluate_failure_classification(result_dir)),
+        run_check("SMK-013", "summary totals and metadata", lambda: check_summary_totals(result_dir)),
+        run_check("SMK-014", "summary domain and csv outputs", lambda: check_summary_domain_and_csv(result_dir)),
+        run_check("SMK-015", "summary rebuild cli and failure rollup", lambda: check_summary_rebuild_cli(result_dir)),
+        run_check("SMK-016", "app_open linux strategy", lambda: check_app_open_linux_strategy(result_dir)),
+        run_check("SMK-017", "bridge busy error classification", lambda: check_bridge_busy(result_dir)),
+        run_check("SMK-018", "get_cursor_position bridge tool", lambda: check_bridge_protocol(result_dir)),
+        run_check("SMK-019", "unified blackbox report generation", lambda: check_report_generation(result_dir)),
+        run_check("SMK-020", "read-only report server helpers", lambda: check_report_server_helpers(result_dir)),
+        run_check("SMK-021", "launcher stdout done terminal", lambda: check_launcher_stdout_done_terminal(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)

@@ -99,6 +99,33 @@ Using cloud services for parallel evaluation can significantly accelerate evalua
 We provide comprehensive AWS support with a Host-Client architecture that enables large-scale parallel evaluation of OSWorld tasks.
 For detailed setup instructions, see [Setup Guideline](SETUP_GUIDELINE.md) and [AWS Configuration Guide](https://github.com/xlang-ai/OSWorld/blob/main/desktop_env/providers/aws/AWS_GUIDELINE.md). 
 
+### Existing Remote Machine
+If you already have an OSWorld Ubuntu machine running and only need to connect to its OSWorld server, use the `remote` provider. This provider does not start, stop, delete, or revert the machine.
+
+When the remote machine is reachable only through SSH, create a local tunnel first:
+
+```bash
+ssh -N \
+  -L 15000:127.0.0.1:5000 \
+  -L 19222:127.0.0.1:9222 \
+  -L 15910:127.0.0.1:5910 \
+  -L 18080:127.0.0.1:8080 \
+  -J jumpecs-hl.byted.org \
+  user@118.196.118.50
+```
+
+Then run OSWorld against the local tunnel:
+
+```bash
+python run.py \
+  --provider_name remote \
+  --path_to_vm 127.0.0.1:15000:19222:15910:18080 \
+  --observation_type screenshot \
+  --model gpt-4o
+```
+
+The endpoint format is `host[:server_port[:chromium_port[:vnc_port[:vlc_port]]]]`. Because `remote` does not restore snapshots, use it for smoke tests or manually reset/reimage the machine between benchmark tasks.
+
 ### Others
 We are working on supporting more 👷. Please hold tight!
 

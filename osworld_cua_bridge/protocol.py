@@ -23,14 +23,14 @@ SUPPORTED_TOOLS = {
     "hotkey",
     "wait",
     "app_open",
+    "shell_exec",
+    "shell_sh",
     "get_screen_size",
     "get_cursor_position",
     "done",
 }
 
 DISABLED_TOOLS = {
-    "shell_exec",
-    "shell_sh",
     "officecli",
     "record_info",
     "read_record",

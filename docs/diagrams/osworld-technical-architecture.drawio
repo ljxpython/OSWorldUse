@@ -1,0 +1,96 @@
+<mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="800" pageHeight="600" math="0" shadow="0">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <mxCell id="title" value="OSWorld 技术架构图" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+      <mxGeometry x="210" y="20" width="380" height="34" as="geometry"/>
+    </mxCell>
+    <mxCell id="subtitle" value="从任务集合、Agent 循环到虚拟桌面执行与评测落盘" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+      <mxGeometry x="190" y="52" width="420" height="22" as="geometry"/>
+    </mxCell>
+    <mxCell id="host_lane" value="Host: OSWorld Python Runtime" style="swimlane;startSize=28;horizontal=1;rounded=1;whiteSpace=wrap;html=1;dashed=1;strokeColor=#64748B;fillColor=#F8FAFC;fontStyle=1;fontColor=#334155;container=0;collapsible=0;" vertex="1" parent="1">
+      <mxGeometry x="30" y="80" width="740" height="260" as="geometry"/>
+    </mxCell>
+    <mxCell id="infra_lane" value="Desktop Infrastructure &amp; Evaluation Outputs" style="swimlane;startSize=28;horizontal=1;rounded=1;whiteSpace=wrap;html=1;dashed=1;strokeColor=#64748B;fillColor=#FAFAF9;fontStyle=1;fontColor=#334155;container=0;collapsible=0;" vertex="1" parent="1">
+      <mxGeometry x="30" y="370" width="740" height="145" as="geometry"/>
+    </mxCell>
+    <mxCell id="task_data" value="Task Data&#xa;evaluation_examples/*.json&#xa;config + evaluator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#7E22CE;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="55" y="118" width="145" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="runner" value="Runner&#xa;quickstart / run.py&#xa;run_multienv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="235" y="118" width="140" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="agent" value="mm_agents&#xa;predict(instruction, obs)&#xa;model-specific adapters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="420" y="118" width="155" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="results_view" value="Result View&#xa;show_result.py&#xa;monitor / reports" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#4F46E5;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="620" y="118" width="125" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="desktop_env" value="DesktopEnv&#xa;Gym Env facade&#xa;reset / step / evaluate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="220" y="248" width="170" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="controllers" value="Controllers&#xa;PythonController&#xa;SetupController" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCFBF1;strokeColor=#0F766E;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="430" y="248" width="150" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="evaluators" value="Evaluators&#xa;getters + metrics&#xa;postconfig" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="625" y="248" width="120" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="providers" value="Providers / Managers&#xa;vmware / docker / aws&#xa;snapshot + IP + ports" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="55" y="415" width="165" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="guest_server" value="Guest Server&#xa;/screenshot / terminal&#xa;execute Python command" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEDD5;strokeColor=#EA580C;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="270" y="415" width="165" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="desktop_apps" value="Desktop VM&#xa;Ubuntu / Windows apps&#xa;Chrome, Office, GIMP..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE4E6;strokeColor=#E11D48;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="485" y="415" width="155" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="artifacts" value="Artifacts&#xa;traj.jsonl / screenshots&#xa;recording.mp4 / result.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F4F5;strokeColor=#52525B;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+      <mxGeometry x="665" y="415" width="90" height="72" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_task_runner" value="load cases" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="task_data" target="runner">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_runner_agent" value="instruction + obs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#EA580C;strokeWidth=1.8;exitX=1;exitY=0.35;entryX=0;entryY=0.35;fontSize=11;fontColor=#9A3412;" edge="1" parent="1" source="runner" target="agent">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_agent_runner" value="actions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#7C3AED;strokeWidth=1.6;dashed=1;dashPattern=5 3;exitX=0;exitY=0.72;entryX=1;entryY=0.72;fontSize=11;fontColor=#6D28D9;" edge="1" parent="1" source="agent" target="runner">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_runner_env" value="create / reset" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="runner" target="desktop_env">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_env_controllers" value="setup / step" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="desktop_env" target="controllers">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_env_provider" value="start / revert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#EA580C;strokeWidth=1.8;exitX=0.15;exitY=1;entryX=0.75;entryY=0;fontSize=11;fontColor=#9A3412;" edge="1" parent="1" source="desktop_env" target="providers">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="245" y="360"/><mxPoint x="180" y="360"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_provider_guest" value="VM lifecycle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#EA580C;strokeWidth=1.8;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=11;fontColor=#9A3412;" edge="1" parent="1" source="providers" target="guest_server">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_controller_guest" value="HTTP + pyautogui" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="controllers" target="guest_server">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="505" y="365"/><mxPoint x="352" y="365"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_guest_apps" value="operate apps" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#2563EB;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=11;fontColor=#1D4ED8;" edge="1" parent="1" source="guest_server" target="desktop_apps">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_obs_back" value="screenshot / a11y / terminal" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#059669;strokeWidth=1.8;dashed=1;dashPattern=5 3;exitX=0.45;exitY=0;entryX=0.8;entryY=1;fontSize=11;fontColor=#047857;" edge="1" parent="1" source="guest_server" target="desktop_env">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="345" y="385"/><mxPoint x="360" y="385"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_env_eval" value="evaluate()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#DC2626;strokeWidth=1.8;exitX=1;exitY=0.55;entryX=0;entryY=0.55;fontSize=11;fontColor=#B91C1C;" edge="1" parent="1" source="desktop_env" target="evaluators">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="405" y="290"/><mxPoint x="605" y="290"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_eval_results" value="score" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#DC2626;strokeWidth=1.8;exitX=0.5;exitY=0;entryX=0.5;entryY=1;fontSize=11;fontColor=#B91C1C;" edge="1" parent="1" source="evaluators" target="results_view">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="edge_eval_artifacts" value="write" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#059669;strokeWidth=1.8;exitX=0.85;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontColor=#047857;" edge="1" parent="1" source="evaluators" target="artifacts">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="725" y="360"/><mxPoint x="710" y="360"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="edge_runner_artifacts" value="traj + recording" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#059669;strokeWidth=1.8;dashed=1;dashPattern=5 3;exitX=1;exitY=0.9;entryX=0;entryY=0.2;fontSize=11;fontColor=#047857;" edge="1" parent="1" source="runner" target="artifacts">
+      <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="765" y="185"/><mxPoint x="765" y="430"/></Array></mxGeometry>
+    </mxCell>
+    <mxCell id="legend" value="实线蓝=主执行流  橙=生命周期/控制  绿虚线=观测/写入  紫虚线=Agent 动作回路" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;fontSize=11;fontColor=#475569;spacing=6;" vertex="1" parent="1">
+      <mxGeometry x="110" y="540" width="580" height="32" as="geometry"/>
+    </mxCell>
+  </root>
+</mxGraphModel>

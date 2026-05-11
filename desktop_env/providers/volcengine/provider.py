@@ -8,7 +8,7 @@ from volcenginesdkcore.rest import ApiException
 from volcenginesdkecs.api import ECSApi
 
 from desktop_env.providers.base import Provider
-from desktop_env.providers.volcengine.manager import _allocate_vm
+from desktop_env.providers.volcengine.manager import _allocate_vm, _delete_instance_and_release_eip
 
 logger = logging.getLogger("desktopenv.providers.volcengine.VolcengineProvider")
 logger.setLevel(logging.INFO)
@@ -22,6 +22,12 @@ class VolcengineProvider(Provider):
         super().__init__(**kwargs)
         self.region = os.getenv("VOLCENGINE_REGION", "eu-central-1")
         self.client = self._create_client()
+        env_use_private = os.getenv("VOLCENGINE_USE_PRIVATE_IP", "1").lower() in {"1", "true", "yes", "on"}
+        kw_flag = kwargs.get("use_private_ip", None)
+        self.use_private_ip = env_use_private if kw_flag is None else bool(kw_flag)
+        self.keep_instance_on_close = (
+            os.getenv("VOLCENGINE_KEEP_INSTANCE_ON_CLOSE", "0").lower() in {"1", "true", "yes", "on"}
+        )
 
     def _create_client(self) -> ECSApi:
         configuration = volcenginesdkcore.Configuration()
@@ -85,6 +91,11 @@ class VolcengineProvider(Provider):
 
             public_ip = instance_info.instances[0].eip_address.ip_address
             private_ip = instance_info.instances[0].network_interfaces[0].primary_ip_address
+            ip_to_use = private_ip if (self.use_private_ip and private_ip) else public_ip
+
+            if not ip_to_use:
+                logger.warning("No usable IP address available (private/public both missing)")
+                return ""
 
             if public_ip:
                 vnc_url = f"http://{public_ip}:5910/vnc.html"
@@ -92,13 +103,14 @@ class VolcengineProvider(Provider):
                 logger.info(f"🖥️  VNC Web Access URL: {vnc_url}")
                 logger.info(f"📡 Public IP: {public_ip}")
                 logger.info(f"🏠 Private IP: {private_ip}")
+                logger.info(f"🔧 Using IP: {'Private' if ip_to_use == private_ip else 'Public'} -> {ip_to_use}")
                 logger.info("=" * 80)
                 print(f"\n🌐 VNC Web Access URL: {vnc_url}")
                 print(f"📍 Please open the above address in the browser for remote desktop access\n")
             else:
                 logger.warning("No public IP address available for VNC access")
 
-            return private_ip
+            return ip_to_use
 
         except ApiException as e:
             logger.error(f"Failed to retrieve IP address for the instance {path_to_vm}: {str(e)}")
@@ -125,10 +137,8 @@ class VolcengineProvider(Provider):
         logger.info(f"Reverting Volcengine VM to snapshot: {snapshot_name}...")
 
         try:
-            # 删除原实例
-            self.client.delete_instance(ecs_models.DeleteInstanceRequest(
-                instance_id=path_to_vm,
-            ))
+            # 删除原实例并释放随实例创建的 EIP，避免连续评测撞 EIP 配额。
+            _delete_instance_and_release_eip(self.client, path_to_vm)
             logger.info(f"Old instance {path_to_vm} has been deleted.")
 
             # 创建实例
@@ -179,9 +189,11 @@ class VolcengineProvider(Provider):
         logger.info(f"Stopping Volcengine VM {path_to_vm}...")
 
         try:
-            self.client.delete_instance(ecs_models.DeleteInstanceRequest(
-                instance_id=path_to_vm,
-            ))
+            if self.keep_instance_on_close:
+                logger.info(f"Skipping termination for {path_to_vm} because VOLCENGINE_KEEP_INSTANCE_ON_CLOSE is enabled.")
+                return
+
+            _delete_instance_and_release_eip(self.client, path_to_vm)
             logger.info(f"Instance {path_to_vm} has been terminated.")
         except ApiException as e:
             logger.error(f"Failed to stop the Volcengine VM {path_to_vm}: {str(e)}")

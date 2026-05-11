@@ -9,6 +9,7 @@ from typing import Any
 CUA_START_FAILED = "cua_start_failed"
 CUA_TIMEOUT = "cua_timeout"
 CUA_NONZERO_EXIT = "cua_nonzero_exit"
+CUA_REPORTED_FAILURE = "cua_reported_failure"
 CUA_INTERRUPTED = "cua_interrupted"
 BRIDGE_BAD_REQUEST = "bridge_bad_request"
 BRIDGE_UNSUPPORTED_TOOL = "bridge_unsupported_tool"
