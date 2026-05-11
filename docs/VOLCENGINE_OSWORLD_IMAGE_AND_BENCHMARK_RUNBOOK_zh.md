@@ -54,7 +54,7 @@
 已有机器只能通过跳板机访问时，先在本地建端口转发：
 
 ```bash
-rtk ssh -N \
+ssh -N \
   -L "127.0.0.1:15000:127.0.0.1:5000" \
   -L "127.0.0.1:19222:127.0.0.1:9222" \
   -L "127.0.0.1:15910:127.0.0.1:5910" \
@@ -66,7 +66,7 @@ rtk ssh -N \
 然后用本地端口跑 quickstart：
 
 ```bash
-rtk .venv/bin/python "quickstart.py" \
+.venv/bin/python "quickstart.py" \
   --provider_name remote \
   --path_to_vm "127.0.0.1:15000:19222:15910:18080"
 ```
@@ -114,7 +114,7 @@ systemctl status ssh --no-pager
 验证 SSH：
 
 ```bash
-rtk ssh -J "jumpecs-hl.byted.org" "user@<ecs-public-ip>"
+ssh -J "jumpecs-hl.byted.org" "user@<ecs-public-ip>"
 ```
 
 镜像密码不要写入文档或提交到仓库。密码应通过 `.env` 的 `VOLCENGINE_DEFAULT_PASSWORD` 或云控制台配置管理。
@@ -132,7 +132,7 @@ curl -I "http://127.0.0.1:5000/screenshot"
 在 runner 机器上验证：
 
 ```bash
-rtk curl -I --connect-timeout "5" --max-time "12" "http://<ecs-ip>:5000/screenshot"
+curl -I --connect-timeout "5" --max-time "12" "http://<ecs-ip>:5000/screenshot"
 ```
 
 期望结果：
@@ -209,7 +209,7 @@ curl -I "http://127.0.0.1:5910/vnc.html"
 在 runner 机器上验证：
 
 ```bash
-rtk curl -I --connect-timeout "5" --max-time "12" "http://<ecs-public-ip>:5910/vnc.html"
+curl -I --connect-timeout "5" --max-time "12" "http://<ecs-public-ip>:5910/vnc.html"
 ```
 
 期望结果：HTTP `200`。
@@ -311,7 +311,7 @@ VOLCENGINE_USE_PRIVATE_IP=1
 本机查询出口 IP：
 
 ```bash
-rtk curl -s "https://api.ipify.org"
+curl -s "https://api.ipify.org"
 ```
 
 provider 使用公网：
@@ -332,7 +332,7 @@ VOLCENGINE_USE_PRIVATE_IP=0
 用 provider 创建一台新 ECS：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 from dotenv import load_dotenv
 load_dotenv(".env")
 
@@ -354,7 +354,7 @@ PY
 查询 provider 使用的访问地址：
 
 ```bash
-rtk env VOLCENGINE_USE_PRIVATE_IP=0 .venv/bin/python - <<'PY'
+env VOLCENGINE_USE_PRIVATE_IP=0 .venv/bin/python - <<'PY'
 from dotenv import load_dotenv
 load_dotenv(".env")
 
@@ -370,14 +370,14 @@ PY
 公网或私网 IP 根据 runner 位置选择。
 
 ```bash
-rtk curl -I --connect-timeout "5" --max-time "12" "http://<ecs-ip>:5000/screenshot"
-rtk curl -I --connect-timeout "5" --max-time "12" "http://<ecs-public-ip>:5910/vnc.html"
+curl -I --connect-timeout "5" --max-time "12" "http://<ecs-ip>:5000/screenshot"
+curl -I --connect-timeout "5" --max-time "12" "http://<ecs-public-ip>:5910/vnc.html"
 ```
 
 端口级验证：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import socket
 
 host = "<ecs-ip>"
@@ -408,7 +408,7 @@ PY
 先跑一个不依赖 Chrome/VLC 的 case，验证主链路：
 
 ```bash
-rtk env \
+env \
   VOLCENGINE_USE_PRIVATE_IP=0 \
   VOLCENGINE_KEEP_INSTANCE_ON_CLOSE=1 \
   .venv/bin/python "scripts/python/run_cua_blackbox_regression.py" \
@@ -468,7 +468,7 @@ average_score≈0.9977
 Chrome case 示例：
 
 ```bash
-rtk env \
+env \
   VOLCENGINE_USE_PRIVATE_IP=0 \
   VOLCENGINE_KEEP_INSTANCE_ON_CLOSE=1 \
   .venv/bin/python "scripts/python/run_cua_blackbox_regression.py" \
@@ -505,7 +505,7 @@ rtk env \
 单环境全量 regression：
 
 ```bash
-rtk env \
+env \
   VOLCENGINE_USE_PRIVATE_IP=0 \
   .venv/bin/python "scripts/python/run_cua_blackbox_regression.py" \
   --provider_name volcengine \
@@ -519,7 +519,7 @@ rtk env \
 如果 runner 部署在同 VPC 内：
 
 ```bash
-rtk env \
+env \
   VOLCENGINE_USE_PRIVATE_IP=1 \
   .venv/bin/python "scripts/python/run_cua_blackbox_regression.py" \
   --provider_name volcengine \
@@ -552,7 +552,7 @@ rtk env \
 优先用：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import socket
 
 sock = socket.socket()
@@ -573,7 +573,7 @@ ssh "jumpecs-hl.byted.org" "nc -v -w 2 <host> 5000"
 改用本地端口转发：
 
 ```bash
-rtk ssh -N -L "127.0.0.1:15000:<target-ip>:5000" "jumpecs-hl.byted.org"
+ssh -N -L "127.0.0.1:15000:<target-ip>:5000" "jumpecs-hl.byted.org"
 ```
 
 ### 3. `5000` 超时但 `5910` 正常

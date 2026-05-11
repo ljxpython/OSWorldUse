@@ -109,7 +109,7 @@ Windows 镜像制作阶段至少需要：
 如果 ECS 不能被 runner 直接访问，而必须通过跳板机，benchmark 仍然需要 HTTP 端口可达。可以在 runner 侧把远端端口映射成本地同端口，再使用 `127.0.0.1:5000:9222:8006:8080` 作为 `path_to_vm`：
 
 ```bash
-rtk ssh -N \
+ssh -N \
   -L "5000:<ecs-private-ip>:5000" \
   -L "9222:<ecs-private-ip>:9222" \
   -L "8080:<ecs-private-ip>:8080" \
@@ -121,13 +121,13 @@ rtk ssh -N \
 查询当前 runner 出口 IP：
 
 ```bash
-rtk curl -s "https://api.ipify.org"
+curl -s "https://api.ipify.org"
 ```
 
 验证端口：
 
 ```bash
-rtk curl -I --connect-timeout "8" --max-time "30" "http://<ecs-ip>:5000/screenshot"
+curl -I --connect-timeout "8" --max-time "30" "http://<ecs-ip>:5000/screenshot"
 ```
 
 ## Windows 初始配置
@@ -216,7 +216,7 @@ Ubuntu OSWorld 镜像通常可继续使用默认值 `30`。
 确认 `.env` 是否读取到值时，不要打印密码明文：
 
 ```bash
-rtk python3 - <<'PY'
+python3 - <<'PY'
 from pathlib import Path
 p = Path(".env")
 text = p.read_text(errors="ignore").splitlines() if p.exists() else []
@@ -238,7 +238,7 @@ PY
 本地 Python 环境需要 `pywinrm`：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import winrm
 print("pywinrm=ok")
 PY
@@ -247,7 +247,7 @@ PY
 验证远端身份和管理员权限。脚本应从 `.env` 读取密码，避免命令行明文：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import os
 from pathlib import Path
 
@@ -357,7 +357,7 @@ C:\osworld\desktop_env\server
 本地上传示例。脚本从 `.env` 读取 WinRM 凭据，不会打印密码：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import base64
 import io
 import os
@@ -543,7 +543,7 @@ Running on http://<private-ip>:5000
 同时用截图确认桌面上没有 `C:\Windows\SYSTEM32\cmd.exe` 黑窗口：
 
 ```bash
-rtk proxy curl -sS -o "/tmp/osworld-win-screenshot.png" \
+curl -sS -o "/tmp/osworld-win-screenshot.png" \
   --connect-timeout 8 --max-time 30 \
   "http://<ecs-ip>:5000/screenshot"
 ```
@@ -560,13 +560,13 @@ Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:5000/accessibility" -Timeou
 runner 机器验证：
 
 ```bash
-rtk curl -I --connect-timeout "8" --max-time "30" "http://<ecs-ip>:5000/screenshot"
+curl -I --connect-timeout "8" --max-time "30" "http://<ecs-ip>:5000/screenshot"
 ```
 
 验证 `/execute`：
 
 ```bash
-rtk proxy curl -sS --connect-timeout 8 --max-time 30 \
+curl -sS --connect-timeout 8 --max-time 30 \
   -H "Content-Type: application/json" \
   -d '{"shell":true,"command":"cmd /c whoami && ver"}' \
   "http://<ecs-ip>:5000/execute"
@@ -581,7 +581,7 @@ rtk proxy curl -sS --connect-timeout 8 --max-time 30 \
 验证本地 `DesktopEnv` 远程模式：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 from desktop_env.desktop_env import DesktopEnv
 
 endpoint = "<ecs-ip>:5000:9222:8006:8080"
@@ -648,7 +648,7 @@ Windows examples 常见做法是：
 确认 `ncat.exe` 在 PATH：
 
 ```bash
-rtk proxy curl -sS --connect-timeout 8 --max-time 30 \
+curl -sS --connect-timeout 8 --max-time 30 \
   -H "Content-Type: application/json" \
   -d '{"shell":true,"command":"cmd /c where ncat.exe"}' \
   "http://<ecs-ip>:5000/execute"
@@ -657,7 +657,7 @@ rtk proxy curl -sS --connect-timeout 8 --max-time 30 \
 临时验证 Chrome 9222：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import time
 import requests
 
@@ -738,7 +738,7 @@ Set-Content -Path $cfg -Value $content -Encoding ASCII
 临时验证 VLC 默认启动后 `8080` 可用：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import time
 import requests
 
@@ -785,13 +785,13 @@ Get-Item "$env:TEMP\osworld_ffmpeg_test.mp4" | Select-Object FullName,Length
 runner 侧验证 OSWorld server 录屏接口：
 
 ```bash
-rtk proxy curl -sS --connect-timeout 8 --max-time 30 \
+curl -sS --connect-timeout 8 --max-time 30 \
   -X POST "http://<ecs-ip>:5000/start_recording"
-rtk sleep 5
-rtk proxy curl -sS --connect-timeout 8 --max-time 60 \
+sleep 5
+curl -sS --connect-timeout 8 --max-time 60 \
   -X POST "http://<ecs-ip>:5000/end_recording" \
   -o "/tmp/osworld-windows-recording.mp4"
-rtk ls -lh "/tmp/osworld-windows-recording.mp4"
+ls -lh "/tmp/osworld-windows-recording.mp4"
 ```
 
 期望：
@@ -890,13 +890,13 @@ Remove-Item -Recurse -Force "C:\Users\User\Desktop\*" -ErrorAction SilentlyConti
 1. 确认网络端口：
 
 ```bash
-rtk curl -I --connect-timeout "8" --max-time "30" "http://<new-ecs-ip>:5000/screenshot"
+curl -I --connect-timeout "8" --max-time "30" "http://<new-ecs-ip>:5000/screenshot"
 ```
 
 2. 确认 `/execute` 用户上下文：
 
 ```bash
-rtk proxy curl -sS --connect-timeout 8 --max-time 30 \
+curl -sS --connect-timeout 8 --max-time 30 \
   -H "Content-Type: application/json" \
   -d '{"shell":true,"command":"cmd /c whoami && ver"}' \
   "http://<new-ecs-ip>:5000/execute"
@@ -905,7 +905,7 @@ rtk proxy curl -sS --connect-timeout 8 --max-time 30 \
 3. 确认 accessibility tree：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 import requests
 host = "<new-ecs-ip>"
 r = requests.get(f"http://{host}:5000/accessibility", timeout=60)
@@ -919,7 +919,7 @@ PY
 4. 确认 `DesktopEnv(remote)`：
 
 ```bash
-rtk .venv/bin/python - <<'PY'
+.venv/bin/python - <<'PY'
 from desktop_env.desktop_env import DesktopEnv
 
 host = "<new-ecs-ip>"
@@ -960,7 +960,7 @@ VOLCENGINE_USE_PRIVATE_IP=0
 只创建并做 dry-run 不能验证端口，因为 `--dry_run` 不启动环境。要验证自动创建链路，跑最小 smoke case：
 
 ```bash
-rtk .venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
+.venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
   --os_type Windows \
   --provider_name volcengine \
   --test_all_meta_path "evaluation_examples/cua_blackbox/suites/windows_smoke.json" \
@@ -995,7 +995,7 @@ rtk .venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
 先做 dry-run，确认 suite 和 case 路径解析正确：
 
 ```bash
-rtk .venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
+.venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
   --os_type Windows \
   --provider_name remote \
   --path_to_vm "<new-ecs-ip>:5000:9222:8006:8080" \
@@ -1026,7 +1026,7 @@ rtk .venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
 再跑一个最小真实链路验证。这个命令使用 `remote` provider，不创建或删除云资源；`max_steps=0` 只验证 runner、CUA bridge、Windows `app_open` 和 evaluator 汇总链路：
 
 ```bash
-rtk .venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
+.venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
   --os_type Windows \
   --provider_name remote \
   --path_to_vm "<new-ecs-ip>:5000:9222:8006:8080" \
@@ -1056,7 +1056,7 @@ rtk .venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
 再跑一个真实 Windows case。这个命令会打开录屏，`max_steps=100`，用于验证 setup、CUA 操作、evaluator 取文件、录屏落盘这条完整链路：
 
 ```bash
-rtk .venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
+.venv/bin/python "scripts/python/run_multienv_cua_blackbox.py" \
   --os_type Windows \
   --provider_name remote \
   --path_to_vm "<new-ecs-ip>:5000:9222:8006:8080" \

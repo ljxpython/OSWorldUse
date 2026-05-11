@@ -49,6 +49,58 @@ OSWORLD_CUA_TIMEOUT_GRACE_SECONDS=60
 - `OSWORLD_CUA_BIN` 可以解析到 CUA CLI，或系统 `PATH` 中存在 `cua`。
 - `OSWORLD_OPENCLAW_BIN` 指向本目录的 `bin/openclaw`，不配置时脚本会使用仓库内默认路径。
 
+### 2.1 OpenClaw shim 工作方式
+
+`bin/openclaw` 是给 CUA 远程工具模式使用的本地 shim，不是真实 OpenClaw 云端客户端。它的作用是把 CUA 发起的 OpenClaw 风格调用转发到本地 BridgeServer：
+
+```text
+CUA CLI
+  -> bin/openclaw
+  -> POST $OSWORLD_CUA_BRIDGE_URL/invoke
+  -> BridgeServer
+  -> CuaBridgeExecutor
+  -> OSWorld DesktopEnv / controller
+```
+
+launcher 启动 CUA 时会传入：
+
+```text
+cua run "<instruction>" \
+  --config "<case-result-dir>/cua_runtime_config.json" \
+  --runs-dir "<case-result-dir>/cua_runs" \
+  --nodeid "osworld-<pid>" \
+  --openclaw-bin "<repo>/osworld_cua_bridge/bin/openclaw" \
+  --target-os "win32|linux|darwin" \
+  --target-screen "1920x1080" \
+  --target-dpr "1"
+```
+
+参数关系：
+
+- runner 参数 `--cua_config_path` 会被 bridge 转成 CUA CLI 的 `--config`。
+- runner 参数 `--cua_node_id` 会被 bridge 转成 CUA CLI 的 `--nodeid`；不传时默认 `osworld-<pid>`。
+- runner 参数 `--openclaw_bin` 会被 bridge 转成 CUA CLI 的 `--openclaw-bin`；不传时默认使用本目录的 `bin/openclaw`。
+- runner 参数 `--os_type Windows|Ubuntu|Darwin` 会被 bridge 转成 CUA CLI 的 `--target-os win32|linux|darwin`。
+
+`bin/openclaw` 当前只支持这个最小命令：
+
+```text
+openclaw nodes invoke \
+  --node <node-id> \
+  --command cua.run \
+  --params <json>
+```
+
+shim 会校验环境变量和请求参数：
+
+- `OSWORLD_CUA_BRIDGE_URL`：BridgeServer 地址，必须存在。
+- `OSWORLD_CUA_NODE_ID`：当前 run 的 node id；如果设置，`--node` 必须一致。
+- `OSWORLD_CUA_RUN_ID`：当前 run id；shim 会用它规范化 payload 中的 `runId`。
+- `--command`：只接受 `cua.run`。
+- `--params`：必须是 JSON object。
+
+它不支持真实 OpenClaw 的完整能力。例如 `attachment download` 或其他子命令会直接返回 `unsupported openclaw shim command`。这是刻意收窄的设计：OSWorld benchmark 只需要把 CUA tool call 转进本地 bridge，不需要引入完整 OpenClaw 依赖。
+
 ## 3. 本地 smoke 验证
 
 不启动 VM，只验证 bridge 协议、tool 翻译、failure 分类、summary、报告生成和 Web server 辅助逻辑：

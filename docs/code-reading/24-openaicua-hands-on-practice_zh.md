@@ -110,7 +110,7 @@
 第一次建议直接在仓库根目录执行：
 
 ```bash
-rtk uv run python scripts/python/run_openaicua_demo.py \
+uv run python scripts/python/run_openaicua_demo.py \
   --path_to_vm "/Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx" \
   --provider_name vmware \
   --action_space pyautogui \

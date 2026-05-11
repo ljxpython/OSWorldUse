@@ -78,6 +78,49 @@ scripts/python/run_multienv_cua_blackbox.py
 - `num_envs>1` 必须准备多个独立 VM，不能多个 worker 竞争同一个 `.vmx`。
 - 这个脚本作为 CLI 使用即可，不建议被别的代码直接 import，因为它在模块顶层会解析参数和初始化日志。
 
+### 2.1 辅助脚本索引
+
+CUA blackbox 相关脚本分为四类：本地 smoke、真实环境探针、case 验收、结果汇总报告。新增或排查问题时，先按下面的表判断该跑哪个脚本，别上来就直接跑完整 benchmark。
+
+| 文件 | 类型 | 主要用途 | 典型输出 |
+| --- | --- | --- | --- |
+| `scripts/python/cua_smoke_test.py` | 可执行 smoke | 不启动真实 VM，使用 fake env/controller 验证 bridge 协议、tool 翻译、failure 分类、summary/report 和 Web report 辅助逻辑 | `cua_smoke_report.json` |
+| `scripts/python/cua_bridge_vm_functional_test.py` | 可执行真实 VM 探针 | 连接真实 `DesktopEnv`，逐个验证 `screenshot`、屏幕尺寸、鼠标、键盘等 bridge tool 能否落到 VM | `functional_report.json`、截图、`runtime.log` |
+| `scripts/python/check_osworld_env_step.py` | 可执行真实 VM 探针 | 直接验证 OSWorld 原生 `DesktopEnv.step()` 是否能在真实 VM 上执行，排除 CUA bridge 之外的环境问题 | `env_step_report.json`、step 截图、`runtime.log` |
+| `scripts/python/check_cua_case_acceptance.py` | 可执行 case 验收 | 对新增或指定 case 做分阶段验收：静态检查、reset 截图、初始 evaluate、可选 blackbox 单跑 | `case_acceptance_report.json` |
+| `scripts/python/check_cua_blackbox_compatibility.py` | 可执行兼容性检查 | 检查 CUA binary、`--config`、`--openclaw-bin`、配置文件、openclaw shim 和 case 静态合法性 | `compatibility_report.json` |
+| `scripts/python/build_cua_blackbox_summary.py` | 可执行汇总工具 | 从已有 blackbox 结果目录重建 `summary/`，可选继续生成 `report/` | `summary.json`、`summary.csv`、可选 `report/` |
+| `scripts/python/build_cua_blackbox_report.py` | 可执行报告工具 | 从 `summary/` 以及可选 smoke/functional/compatibility/case 验收报告生成可读报告 | `report.json`、`report.md`、`index.html` |
+| `scripts/python/cua_case_resolver.py` | 内部 helper | 在 OSWorld 原始 case 目录和 `evaluation_examples/cua_blackbox/cases/` 之间解析实际 case JSON 路径 | 被 runner / validator import |
+| `scripts/python/cua_blackbox_defaults.py` | 内部 defaults | 集中定义 CUA blackbox 默认 suite、cases 和 legacy regression meta 路径 | 被 runner / validator import |
+
+推荐排查顺序：
+
+1. 改了 CUA binary、config 或 openclaw shim：先跑 `check_cua_blackbox_compatibility.py`。
+2. 改了 bridge 协议、tool 翻译、summary/report：先跑 `cua_smoke_test.py`。
+3. 怀疑 OSWorld VM 本身不可用：先跑 `check_osworld_env_step.py`。
+4. 怀疑 bridge tool 在真实 VM 上不可用：跑 `cua_bridge_vm_functional_test.py`。
+5. 新增或迁移 case：跑 `check_cua_case_acceptance.py`。
+6. 评测已跑完但 summary/report 不对：跑 `build_cua_blackbox_summary.py` 或 `build_cua_blackbox_report.py`。
+
+常用命令：
+
+```bash
+uv run python scripts/python/check_cua_blackbox_compatibility.py
+uv run python scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke
+uv run python scripts/python/cua_bridge_vm_functional_test.py --tools screenshot,get_screen_size,get_cursor_position
+uv run python scripts/python/check_osworld_env_step.py --provider_name vmware --path_to_vm /path/to/Ubuntu0.vmx
+uv run python scripts/python/check_cua_case_acceptance.py --domain excel --example_id <case-id>
+uv run python scripts/python/build_cua_blackbox_summary.py --result_root <result-root> --build_report
+uv run python scripts/python/build_cua_blackbox_report.py --result_root <result-root>
+```
+
+注意：
+
+- `cua_case_resolver.py` 和 `cua_blackbox_defaults.py` 是 helper，不应作为命令直接运行。
+- `check_osworld_env_step.py` 和 `cua_bridge_vm_functional_test.py` 会操作真实 VM，运行前确认目标 VM 可以被 reset 或允许保留现场。
+- `build_cua_blackbox_summary.py` 和 `build_cua_blackbox_report.py` 只读已有结果并写 `summary/`、`report/`，不会重新跑 case。
+
 ---
 
 ## 3. 主调用链
