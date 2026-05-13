@@ -63,6 +63,15 @@ def resolve_optional_coords(args: dict[str, Any]) -> tuple[int, int] | None:
     return _bbox_center(args)
 
 
+def resolve_scroll_coords(args: dict[str, Any]) -> tuple[int, int] | None:
+    if "x" in args and "y" in args:
+        return _as_int(args["x"], "x"), _as_int(args["y"], "y")
+    center = _bbox_center(args)
+    if center is not None:
+        return center
+    return None
+
+
 def map_coords_to_screen(
     x: int,
     y: int,
@@ -108,13 +117,16 @@ def map_args_to_screen(
         return mapped
 
     if tool == "mouse_scroll":
-        coords = resolve_optional_coords(mapped)
+        coords = resolve_scroll_coords(mapped)
         if coords is not None:
             x, y = map_coords_to_screen(coords[0], coords[1], screen_size=screen_size, normalized_input=normalized_input)
             mapped["x"] = x
             mapped["y"] = y
             mapped.pop("bbox", None)
             mapped.pop("bbox_format", None)
+        elif ("x" in mapped) != ("y" in mapped):
+            mapped.pop("x", None)
+            mapped.pop("y", None)
         return mapped
 
     if tool == "mouse_drag":
@@ -205,7 +217,7 @@ def translate_tool_to_pyautogui(tool: str, args: dict[str, Any]) -> str | None:
         )
 
     if tool == "mouse_scroll":
-        coords = resolve_optional_coords(args)
+        coords = resolve_scroll_coords(args)
         clicks = _as_int(args.get("clicks", 0), "clicks")
         if clicks == 0:
             raise ToolTranslationError("clicks must be non-zero")

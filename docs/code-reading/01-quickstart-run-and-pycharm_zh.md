@@ -219,13 +219,13 @@ HF_ENDPOINT=https://hf-mirror.com
 如果你已经通过 `vmrun list` 看到了自己的 VM：
 
 ```text
-/Users/bytedance/Virtual Machines.localized/Ubuntu 64 位 ARM 26.04.vmwarevm/Ubuntu 64 位 ARM 26.04.vmx
+<vmware-vmx-path>
 ```
 
 那么 `--path_to_vm` 就直接传这个 `.vmx` 的绝对路径：
 
 ```bash
---path_to_vm "/Users/bytedance/Virtual Machines.localized/Ubuntu 64 位 ARM 26.04.vmwarevm/Ubuntu 64 位 ARM 26.04.vmx"
+--path_to_vm "<vmware-vmx-path>"
 ```
 
 对应的完整命令可以直接写成：
@@ -233,13 +233,13 @@ HF_ENDPOINT=https://hf-mirror.com
 ```bash
 uv run python quickstart.py \
   --provider_name vmware \
-  --path_to_vm "/Users/bytedance/Virtual Machines.localized/Ubuntu 64 位 ARM 26.04.vmwarevm/Ubuntu 64 位 ARM 26.04.vmx"
+  --path_to_vm "<vmware-vmx-path>"
 ```
 
 如果你在 PyCharm 里配置 `Parameters`，也直接填：
 
 ```text
---provider_name vmware --path_to_vm "/Users/bytedance/Virtual Machines.localized/Ubuntu 64 位 ARM 26.04.vmwarevm/Ubuntu 64 位 ARM 26.04.vmx"
+--provider_name vmware --path_to_vm "<vmware-vmx-path>"
 ```
 
 ## 三、命令行里怎么运行
@@ -269,7 +269,7 @@ uv run python quickstart.py \
 ```bash
 uv run python quickstart.py \
   --provider_name vmware \
-  --path_to_vm "/Users/bytedance/Virtual Machines.localized/Ubuntu 64 位 ARM 26.04.vmwarevm/Ubuntu 64 位 ARM 26.04.vmx"
+  --path_to_vm "<vmware-vmx-path>"
 ```
 
 ## 四、PyCharm 里怎么运行
@@ -291,7 +291,7 @@ uv run python quickstart.py \
 路径通常是：
 
 ```text
-/Users/.../osworld/.venv/bin/python
+<osworld-repo>/.venv/bin/python
 ```
 
 确认后，PyCharm 就会使用项目已经装好的依赖。
@@ -326,7 +326,7 @@ uv run python quickstart.py \
 基于你当前机器，可以直接填成：
 
 ```text
---provider_name vmware --path_to_vm "/Users/bytedance/Virtual Machines.localized/Ubuntu 64 位 ARM 26.04.vmwarevm/Ubuntu 64 位 ARM 26.04.vmx"
+--provider_name vmware --path_to_vm "<vmware-vmx-path>"
 ```
 
 ### 4. Environment variables 一般怎么填
@@ -427,7 +427,7 @@ uv run python quickstart.py --provider_name vmware --headless False
 ```bash
 uv run python quickstart.py \
   --provider_name vmware \
-  --path_to_vm "/Users/bytedance/Virtual Machines.localized/Ubuntu 64 位 ARM 26.04.vmwarevm/Ubuntu 64 位 ARM 26.04.vmx"
+  --path_to_vm "<vmware-vmx-path>"
 ```
 
 ## 七、常见报错应该先查什么

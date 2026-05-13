@@ -242,7 +242,7 @@ OPENAI_BASE_URL=...
 
 ```bash
 uv run python scripts/python/run_openaicua_demo.py \
-  --path_to_vm "/Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx" \
+  --path_to_vm "<vmware-vmx-path>" \
   --provider_name vmware \
   --action_space pyautogui \
   --observation_type screenshot \

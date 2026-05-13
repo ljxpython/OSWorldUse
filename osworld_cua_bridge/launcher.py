@@ -320,13 +320,17 @@ def run_cua_blackbox(
     return result
 
 
-def _target_os_from_args(args: Any) -> str:
-    os_type = str(getattr(args, "os_type", "Ubuntu") or "Ubuntu").lower()
-    if os_type == "windows":
-        return "windows"
-    if os_type in {"darwin", "macos", "mac"}:
-        return "macos"
+def target_os_from_os_type(os_type: str | None) -> str:
+    normalized = str(os_type or "Ubuntu").lower()
+    if normalized in {"windows", "win32"}:
+        return "win32"
+    if normalized in {"darwin", "macos", "mac"}:
+        return "darwin"
     return "linux"
+
+
+def _target_os_from_args(args: Any) -> str:
+    return target_os_from_os_type(getattr(args, "os_type", "Ubuntu"))
 
 
 def _failure_from_cua_stdout(stdout: str) -> tuple[str, str, str] | None:

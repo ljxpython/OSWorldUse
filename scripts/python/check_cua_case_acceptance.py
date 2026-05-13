@@ -15,6 +15,10 @@ sys.path.insert(0, ROOT_DIR)
 from scripts.python.validate_cua_regression_cases import DEFAULT_CASES_DIR, DEFAULT_META_PATH, validate_cases
 from scripts.python.cua_blackbox_defaults import CUA_BLACKBOX_CASES_DIR
 from scripts.python.cua_case_resolver import resolve_case_path
+from scripts.python.cua_local_targets import load_repo_dotenv, resolve_path_to_vm_from_env
+
+
+load_repo_dotenv(ROOT_DIR)
 
 
 def config() -> argparse.Namespace:
@@ -28,11 +32,17 @@ def config() -> argparse.Namespace:
     parser.add_argument("--check_env_reset", action="store_true", help="Run DesktopEnv.reset() + screenshot checks")
     parser.add_argument("--check_initial_evaluate", action="store_true", help="Run env.evaluate() after reset and record the score")
     parser.add_argument("--run_blackbox", action="store_true", help="Run each selected case through run_multienv_cua_blackbox.py")
-    parser.add_argument("--provider_name", type=str, default="vmware", choices=["aws", "virtualbox", "vmware", "docker", "azure"])
+    parser.add_argument(
+        "--provider_name",
+        type=str,
+        default="vmware",
+        choices=["aws", "virtualbox", "vmware", "docker", "azure", "aliyun", "volcengine", "remote"],
+    )
     parser.add_argument("--region", type=str, default="us-east-1")
     parser.add_argument("--path_to_vm", type=str, default=None)
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--client_password", type=str, default="")
+    parser.add_argument("--os_type", type=str, default="Ubuntu", choices=["Ubuntu", "Windows", "Darwin"])
     parser.add_argument("--screen_width", type=int, default=1920)
     parser.add_argument("--screen_height", type=int, default=1080)
     parser.add_argument("--env_ready_sleep", type=float, default=5.0)
@@ -40,7 +50,9 @@ def config() -> argparse.Namespace:
     parser.add_argument("--max_steps", type=int, default=20)
     parser.add_argument("--log_level", type=str, default="INFO")
     parser.add_argument("--blackbox_result_dir", type=str, default="./results_cua_case_acceptance_blackbox")
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.path_to_vm = resolve_path_to_vm_from_env(args.path_to_vm, args.provider_name, args.os_type)
+    return args
 
 
 def _load_json(path: str) -> Any:
@@ -90,7 +102,7 @@ def _run_env_checks(args: argparse.Namespace, rows: list[dict[str, str]], cases_
         snapshot_name=_snapshot_name(args.provider_name, args.screen_width, args.screen_height),
         screen_size=(args.screen_width, args.screen_height),
         headless=args.headless,
-        os_type="Ubuntu",
+        os_type=args.os_type,
         require_a11y_tree=False,
         enable_proxy=True,
         client_password=args.client_password,
@@ -139,6 +151,8 @@ def _run_blackbox_case(args: argparse.Namespace, row: dict[str, str]) -> dict[st
         os.path.join(ROOT_DIR, "scripts", "python", "run_multienv_cua_blackbox.py"),
         "--provider_name",
         args.provider_name,
+        "--os_type",
+        args.os_type,
         "--action_space",
         "pyautogui",
         "--observation_type",

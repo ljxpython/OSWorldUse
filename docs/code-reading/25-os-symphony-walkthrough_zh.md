@@ -30,8 +30,8 @@
 
 图文件：
 
-- [os_symphony-integration-flow.svg](/Users/bytedance/PycharmProjects/test5/osworld/docs/diagrams/os_symphony-integration-flow.svg)
-- [os_symphony-integration-flow.png](/Users/bytedance/PycharmProjects/test5/osworld/docs/diagrams/os_symphony-integration-flow.png)
+- [os_symphony-integration-flow.svg](../diagrams/os_symphony-integration-flow.svg)
+- [os_symphony-integration-flow.png](../diagrams/os_symphony-integration-flow.png)
 
 ![OS Symphony Integration Flow](../diagrams/os_symphony-integration-flow.png)
 

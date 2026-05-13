@@ -14,10 +14,12 @@ from scripts.python.cua_blackbox_defaults import (
     default_cua_regression_meta_path,
     default_cua_windows_smoke_meta_path,
 )
+from scripts.python.cua_local_targets import load_repo_dotenv, resolve_path_to_vm_from_env
 
 RUNNER = os.path.join(ROOT_DIR, "scripts", "python", "run_multienv_cua_blackbox.py")
 DEFAULT_META_PATH = default_cua_regression_meta_path()
 DEFAULT_WINDOWS_META_PATH = default_cua_windows_smoke_meta_path()
+load_repo_dotenv(ROOT_DIR)
 
 
 def config() -> argparse.Namespace:
@@ -54,6 +56,7 @@ def config() -> argparse.Namespace:
     parser.add_argument("--enable_recording", action="store_true")
     parser.add_argument("--cua_extra_args", nargs=argparse.REMAINDER, default=None)
     args = parser.parse_args()
+    args.path_to_vm = resolve_path_to_vm_from_env(args.path_to_vm, args.provider_name, args.os_type)
     if args.test_all_meta_path is None:
         args.test_all_meta_path = DEFAULT_WINDOWS_META_PATH if args.os_type == "Windows" else DEFAULT_META_PATH
     if not args.cua_config_path:

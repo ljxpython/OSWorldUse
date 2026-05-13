@@ -14,8 +14,10 @@ from typing import Any
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
+from scripts.python.cua_local_targets import load_repo_dotenv, resolve_path_to_vm_from_env
 
 logger = logging.getLogger("desktopenv.env_step_check")
+load_repo_dotenv(ROOT_DIR)
 
 
 @dataclass
@@ -32,11 +34,17 @@ class StepCheck:
 
 def config() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Verify DesktopEnv.step() on a real OSWorld environment")
-    parser.add_argument("--provider_name", type=str, default="vmware", choices=["aws", "virtualbox", "vmware", "docker", "azure"])
+    parser.add_argument(
+        "--provider_name",
+        type=str,
+        default="vmware",
+        choices=["aws", "virtualbox", "vmware", "docker", "azure", "aliyun", "volcengine", "remote"],
+    )
     parser.add_argument("--region", type=str, default="us-east-1")
     parser.add_argument("--path_to_vm", type=str, default=None)
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--client_password", type=str, default="")
+    parser.add_argument("--os_type", type=str, default="Ubuntu", choices=["Ubuntu", "Windows", "Darwin"])
     parser.add_argument("--screen_width", type=int, default=1920)
     parser.add_argument("--screen_height", type=int, default=1080)
     parser.add_argument("--snapshot_name", type=str, default="init_state")
@@ -50,7 +58,9 @@ def config() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="INFO",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.path_to_vm = resolve_path_to_vm_from_env(args.path_to_vm, args.provider_name, args.os_type)
+    return args
 
 
 def setup_logging(result_dir: str, level: str) -> None:
@@ -148,7 +158,7 @@ def run() -> int:
             snapshot_name=args.snapshot_name,
             screen_size=(args.screen_width, args.screen_height),
             headless=args.headless,
-            os_type="Ubuntu",
+            os_type=args.os_type,
             require_a11y_tree=False,
             enable_proxy=False,
             client_password=args.client_password,

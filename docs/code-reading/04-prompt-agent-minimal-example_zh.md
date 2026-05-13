@@ -54,7 +54,7 @@
 假设你的图片是：
 
 ```text
-/Users/yourname/Desktop/demo.png
+<image-path>
 ```
 
 ## 二、先用 mock 模式跑
@@ -63,7 +63,7 @@
 
 ```bash
 uv run python scripts/python/prompt_agent_minimal_demo.py \
-  --image /Users/yourname/Desktop/demo.png
+  --image <image-path>
 ```
 
 这条命令会做三件事：
@@ -144,7 +144,7 @@ pyautogui.press("enter")
 
 ```bash
 uv run python scripts/python/prompt_agent_minimal_demo.py \
-  --image /Users/yourname/Desktop/demo.png \
+  --image <image-path> \
   --dump-messages /tmp/prompt_agent_payload.json
 ```
 
@@ -224,7 +224,7 @@ return "Click the search box and type hello."
 export OPENAI_API_KEY=your_key_here
 
 uv run python scripts/python/prompt_agent_minimal_demo.py \
-  --image /Users/yourname/Desktop/demo.png \
+  --image <image-path> \
   --live \
   --model gpt-4o
 ```

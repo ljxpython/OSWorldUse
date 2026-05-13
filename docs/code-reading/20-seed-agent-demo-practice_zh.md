@@ -290,7 +290,7 @@ DOUBAO_API_URL=https://ark.cn-beijing.volces.com/api/v3
 
 ```bash
 uv run python scripts/python/run_seed_agent_demo.py \
-  --path_to_vm "/Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx" \
+  --path_to_vm "<vmware-vmx-path>" \
   --provider_name vmware \
   --action_space pyautogui \
   --observation_type screenshot \

@@ -38,7 +38,7 @@
     <mxCell id="bridge_server" value="BridgeServer&#xa;ThreadingHTTPServer&#xa;/health + /invoke" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEDD5;strokeColor=#EA580C;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
       <mxGeometry x="445" y="238" width="150" height="72" as="geometry"/>
     </mxCell>
-    <mxCell id="openclaw" value="openclaw shim&#xa;nodes invoke cua.run&#xa;inject runId/nodeId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#DB2777;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
+    <mxCell id="openclaw" value="openclaw shim&#xa;nodes invoke cua.*&#xa;inject runId/nodeId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#DB2777;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">
       <mxGeometry x="55" y="338" width="150" height="58" as="geometry"/>
     </mxCell>
     <mxCell id="executor" value="BridgeExecutor&#xa;parse + runId check&#xa;cache reqId + lock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#DC2626;fontSize=12;fontStyle=1;spacing=8;" vertex="1" parent="1">

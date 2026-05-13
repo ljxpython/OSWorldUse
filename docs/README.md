@@ -36,6 +36,7 @@
 - [CUA Benchmark 评测使用手册](./CUA_BENCHMARK_USER_GUIDE_zh.md)
 - [火山云 OSWorld 镜像构建与 CUA Benchmark 运行手册](./VOLCENGINE_OSWORLD_IMAGE_AND_BENCHMARK_RUNBOOK_zh.md)
 - [Windows OSWorld 镜像构建与可用性验证手册](./WINDOWS_OSWORLD_IMAGE_AND_VALIDATION_RUNBOOK_zh.md)
+- [Windows 云机跳板连接与本地调试手册](./WINDOWS_JUMP_HOST_ACCESS_RUNBOOK_zh.md)
 
 ## Code Reading
 

@@ -13,7 +13,7 @@
 
 本指南默认你当前工作目录是：
 
-`/Users/bytedance/PycharmProjects/test5/osworld`
+`<osworld-repo>`
 
 ## 2. 先明确：OSWorld 验证 CUA 的基本方式
 

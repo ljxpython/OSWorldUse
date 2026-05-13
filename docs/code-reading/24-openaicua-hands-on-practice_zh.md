@@ -46,7 +46,7 @@
 例如：
 
 ```text
-/Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx
+<vmware-vmx-path>
 ```
 
 ### 2. 虚拟机里已经有 `init_state` 快照
@@ -111,7 +111,7 @@
 
 ```bash
 uv run python scripts/python/run_openaicua_demo.py \
-  --path_to_vm "/Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx" \
+  --path_to_vm "<vmware-vmx-path>" \
   --provider_name vmware \
   --action_space pyautogui \
   --observation_type screenshot \
@@ -248,27 +248,27 @@ uv run python scripts/python/run_openaicua_demo.py \
 
 填：
 
-- [scripts/python/run_openaicua_demo.py](/Users/bytedance/PycharmProjects/test5/osworld/scripts/python/run_openaicua_demo.py)
+- [scripts/python/run_openaicua_demo.py](../../scripts/python/run_openaicua_demo.py)
 
 ### 2. Parameters
 
 填：
 
 ```text
---path_to_vm /Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx --provider_name vmware --action_space pyautogui --observation_type screenshot --test_all_meta_path docs/code-reading/examples/test_one_chrome.json --model computer-use-preview --max_steps 1 --result_dir ./results/openaicua-demo-pycharm
+--path_to_vm <vmware-vmx-path> --provider_name vmware --action_space pyautogui --observation_type screenshot --test_all_meta_path docs/code-reading/examples/test_one_chrome.json --model computer-use-preview --max_steps 1 --result_dir ./results/openaicua-demo-pycharm
 ```
 
 ### 3. Working directory
 
 填仓库根目录：
 
-- `/Users/bytedance/PycharmProjects/test5/osworld`
+- `<osworld-repo>`
 
 ### 4. Python interpreter
 
 选项目虚拟环境里的解释器：
 
-- `/Users/bytedance/PycharmProjects/test5/osworld/.venv/bin/python`
+- `<osworld-repo>/.venv/bin/python`
 
 ### 5. Environment variables
 
@@ -286,7 +286,7 @@ uv run python scripts/python/run_openaicua_demo.py \
 
 ### 1. 入口层
 
-在 [run_openaicua_demo.py:203](/Users/bytedance/PycharmProjects/test5/osworld/scripts/python/run_openaicua_demo.py:203) 这一行附近打断点：
+在 [run_openaicua_demo.py](../../scripts/python/run_openaicua_demo.py) 的对应入口附近打断点：
 
 - `lib_run_single.run_single_example_openaicua(...)`
 
@@ -298,7 +298,7 @@ uv run python scripts/python/run_openaicua_demo.py \
 
 ### 2. rollout 主循环
 
-在 [lib_run_single.py:238](/Users/bytedance/PycharmProjects/test5/osworld/lib_run_single.py:238) 这一行附近打断点：
+在 [lib_run_single.py](../../lib_run_single.py) 的 rollout 主循环附近打断点：
 
 - `response, actions = agent.predict(...)`
 
@@ -309,7 +309,7 @@ uv run python scripts/python/run_openaicua_demo.py \
 
 ### 3. agent 推理入口
 
-在 [openai_cua_agent.py:656](/Users/bytedance/PycharmProjects/test5/osworld/mm_agents/openai_cua_agent.py:656) 附近打断点：
+在 [openai_cua_agent.py](../../mm_agents/openai_cua_agent.py) 的 `predict(...)` 附近打断点：
 
 - `def predict(...)`
 
@@ -320,7 +320,7 @@ uv run python scripts/python/run_openaicua_demo.py \
 
 ### 4. 动作执行入口
 
-在 [openai_cua_agent.py:748](/Users/bytedance/PycharmProjects/test5/osworld/mm_agents/openai_cua_agent.py:748) 附近打断点：
+在 [openai_cua_agent.py](../../mm_agents/openai_cua_agent.py) 的 `step(...)` 附近打断点：
 
 - `def step(...)`
 

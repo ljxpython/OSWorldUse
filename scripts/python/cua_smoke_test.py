@@ -19,7 +19,7 @@ sys.path.insert(0, ROOT_DIR)
 
 from osworld_cua_bridge.executor import CuaBridgeExecutor
 from osworld_cua_bridge.failures import CUA_START_FAILED, CUA_TIMEOUT, EVALUATE_FAILED, read_failure_summary, write_failure
-from osworld_cua_bridge.launcher import run_cua_blackbox
+from osworld_cua_bridge.launcher import run_cua_blackbox, target_os_from_os_type
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from osworld_cua_bridge.reporting import build_blackbox_summary
 from osworld_cua_bridge.server import BridgeServer
@@ -179,6 +179,15 @@ def check_tool_translator() -> None:
     )
     assert vertical_drag == {"fromX": 760, "fromY": 650, "toX": 760, "toY": 700}
 
+    mapped_scroll = map_args_to_screen(
+        "mouse_scroll",
+        {"clicks": -1, "y": 500},
+        screen_size=(1920, 1080),
+        normalized_input=True,
+    )
+    assert mapped_scroll == {"clicks": -1}
+    assert translate_tool_to_pyautogui("mouse_scroll", mapped_scroll) == "pyautogui.scroll(-1)"
+
 
 def check_bridge_protocol(result_dir: str) -> None:
     _, executor = _make_executor(result_dir)
@@ -221,6 +230,7 @@ def check_bridge_actions(result_dir: str) -> None:
 
     _assert_ok(_request(executor, "type-001", "clipboard_type", {"text": "hello"}))
     assert "_cua_text = 'hello'" in env.controller.commands[-1]
+    assert "xclip -selection clipboard -loops 1" in env.controller.commands[-1]
 
     _assert_ok(_request(executor, "hotkey-001", "hotkey", {"keys": ["ctrl", "l"]}))
     assert "pyautogui.hotkey('ctrl', 'l')" in env.controller.commands[-1]
@@ -231,6 +241,9 @@ def check_bridge_actions(result_dir: str) -> None:
     _assert_ok(_request(executor, "drag-001", "mouse_drag", {"fromX": 100, "fromY": 200, "toX": 300}))
     assert "pyautogui.moveTo(192, 216)" in env.controller.commands[-1]
     assert "pyautogui.dragTo(576, 216" in env.controller.commands[-1]
+
+    _assert_ok(_request(executor, "scroll-001", "mouse_scroll", {"clicks": -1, "y": 500}))
+    assert env.controller.commands[-1] == "pyautogui.scroll(-1)"
 
     _assert_ok(_request(executor, "done-001", "done", {"reason": "smoke"}))
     assert executor.done is True
@@ -276,6 +289,27 @@ def check_app_open_linux_strategy(result_dir: str) -> None:
     assert "shutil.which" in env.controller.commands[-1]
 
 
+def _run_openclaw_shim(shim: str, env: dict[str, str], command: str, params: dict[str, Any]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            shim,
+            "nodes",
+            "invoke",
+            "--node",
+            NODE_ID,
+            "--command",
+            command,
+            "--params",
+            json.dumps(params, ensure_ascii=False),
+        ],
+        text=True,
+        capture_output=True,
+        timeout=10,
+        env=env,
+    )
+
+
 def check_openclaw_shim(result_dir: str) -> None:
     _, executor = _make_executor(result_dir)
     server = BridgeServer(executor=executor)
@@ -288,38 +322,83 @@ def check_openclaw_shim(result_dir: str) -> None:
         env = os.environ.copy()
         env["OSWORLD_CUA_BRIDGE_URL"] = server.url
         env["OSWORLD_CUA_NODE_ID"] = NODE_ID
-        params = json.dumps(
+        env["OSWORLD_CUA_RUN_ID"] = RUN_ID
+        shim = os.path.join(ROOT_DIR, "osworld_cua_bridge", "bin", "openclaw")
+
+        legacy = _run_openclaw_shim(
+            shim,
+            env,
+            "cua.run",
             {
                 "runId": RUN_ID,
                 "reqId": "shim-size-001",
                 "tool": "get_screen_size",
                 "args": {},
-            }
+            },
         )
-        shim = os.path.join(ROOT_DIR, "osworld_cua_bridge", "bin", "openclaw")
-        proc = subprocess.run(
-            [
-                sys.executable,
-                shim,
-                "nodes",
-                "invoke",
-                "--node",
-                NODE_ID,
-                "--command",
-                "cua.run",
-                "--params",
-                params,
-            ],
-            text=True,
-            capture_output=True,
-            timeout=10,
-            env=env,
+        assert legacy.returncode == 0, legacy.stderr
+        legacy_payload = json.loads(legacy.stdout)
+        assert legacy_payload["ok"] is True
+        assert '"width": 1920' in legacy_payload["payload"]["output"]
+
+        alias = _run_openclaw_shim(
+            shim,
+            env,
+            "run",
+            {
+                "runId": RUN_ID,
+                "reqId": "shim-cursor-001",
+                "tool": "get_cursor_position",
+                "args": {},
+            },
         )
-        assert proc.returncode == 0, proc.stderr
-        payload = json.loads(proc.stdout)
-        assert payload["ok"] is True
+        assert alias.returncode == 0, alias.stderr
+        alias_payload = json.loads(alias.stdout)
+        assert alias_payload["ok"] is True
+        assert '"x": 960' in alias_payload["payload"]["output"]
+
+        new_style = _run_openclaw_shim(
+            shim,
+            env,
+            "cua.screenshot",
+            {
+                "runId": "native-cua-run",
+                "reqId": "shim-screenshot-001",
+                "args": {},
+            },
+        )
+        assert new_style.returncode == 0, new_style.stderr
+        new_style_payload = json.loads(new_style.stdout)
+        assert new_style_payload["ok"] is True
+        assert new_style_payload["payload"]["type"] == "image_base64"
+        assert new_style_payload["payload"]["runId"] == RUN_ID
+
+        mismatch = _run_openclaw_shim(
+            shim,
+            env,
+            "cua.screenshot",
+            {
+                "runId": RUN_ID,
+                "reqId": "shim-mismatch-001",
+                "tool": "mouse_click",
+                "args": {},
+            },
+        )
+        assert mismatch.returncode == 2
+        mismatch_payload = json.loads(mismatch.stdout)
+        assert mismatch_payload["ok"] is False
+        assert "command/tool mismatch" in mismatch_payload["error"]["message"]
     finally:
         server.stop()
+
+
+def check_launcher_target_os_mapping() -> None:
+    assert target_os_from_os_type("Windows") == "win32"
+    assert target_os_from_os_type("win32") == "win32"
+    assert target_os_from_os_type("Ubuntu") == "linux"
+    assert target_os_from_os_type("Darwin") == "darwin"
+    assert target_os_from_os_type("macOS") == "darwin"
+    assert target_os_from_os_type("mac") == "darwin"
 
 
 def check_launcher_failure_classification(result_dir: str) -> None:
@@ -771,7 +850,7 @@ def main() -> int:
         run_check("SMK-005", "clipboard text input translation", lambda: check_bridge_actions(result_dir)),
         run_check("SMK-006", "hotkey and key press translation", lambda: check_bridge_actions(result_dir)),
         run_check("SMK-007", "done terminal semantics", lambda: check_bridge_actions(result_dir)),
-        run_check("SMK-008", "openclaw shim and structured errors", lambda: check_openclaw_shim(result_dir)),
+        run_check("SMK-008", "openclaw shim command compatibility and structured errors", lambda: check_openclaw_shim(result_dir)),
         run_check("SMK-009", "launcher failure classification", lambda: check_launcher_failure_classification(result_dir)),
         run_check("SMK-010", "launcher timeout classification", lambda: check_launcher_timeout_classification(result_dir)),
         run_check("SMK-011", "launcher stdout failure classification", lambda: check_launcher_stdout_failure_classification(result_dir)),
@@ -785,6 +864,7 @@ def main() -> int:
         run_check("SMK-019", "unified blackbox report generation", lambda: check_report_generation(result_dir)),
         run_check("SMK-020", "read-only report server helpers", lambda: check_report_server_helpers(result_dir)),
         run_check("SMK-021", "launcher stdout done terminal", lambda: check_launcher_stdout_done_terminal(result_dir)),
+        run_check("SMK-022", "launcher target-os mapping", check_launcher_target_os_mapping),
     ]
 
     passed = all(item.passed for item in checks)

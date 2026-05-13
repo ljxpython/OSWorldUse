@@ -75,7 +75,7 @@
   <line x1="142.0" y1="246.0" x2="418.0" y2="246.0" stroke="#d1d5db" stroke-opacity="0.35" stroke-width="1.2"/>
   <line x1="142.0" y1="260.0" x2="418.0" y2="260.0" stroke="#d1d5db" stroke-opacity="0.35" stroke-width="1.2"/>
   <text x="280.0" y="312.0" text-anchor="middle" class="node-title">VMware .vmx 路径</text>
-  <text x="280.0" y="330.0" text-anchor="middle" class="node-sub">/Users/.../Ubuntu 64 位 ARM 26.04.vmx</text>
+  <text x="280.0" y="330.0" text-anchor="middle" class="node-sub"><vmware-vmx-path></text>
   <rect x="120.0" y="330.0" width="320.0" height="88.0" rx="10.0" fill="#ffffff" stroke="#d1d5db" stroke-width="1.8" filter="url(#shadowSoft)"/>
   <text x="280.0" y="374.0" text-anchor="middle" class="node-title">--provider_name vmware</text>
   <text x="280.0" y="396.0" text-anchor="middle" class="node-sub">第一次实践先保持和当前环境一致</text>

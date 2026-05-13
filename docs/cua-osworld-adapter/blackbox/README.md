@@ -21,6 +21,10 @@
 - `scripts/python/check_osworld_env_step.py`
 - `lib_run_single.run_single_example_cua_blackbox()`
 
+当前优化规划：
+
+- [OpenClaw Shim 兼容性优化规划](./OPENCLAW_SHIM_COMPATIBILITY_PLAN_zh.md)
+
 当前固定回归集合：
 
 - `evaluation_examples/test_cua_regression.json`

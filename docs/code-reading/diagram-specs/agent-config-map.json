@@ -45,7 +45,7 @@
       "width": 320,
       "height": 96,
       "label": "VMware .vmx 路径",
-      "sublabel": "/Users/.../Ubuntu 64 位 ARM 26.04.vmx"
+      "sublabel": "<vmware-vmx-path>"
     },
     {
       "id": "provider",

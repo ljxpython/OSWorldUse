@@ -82,22 +82,32 @@ cua run "<instruction>" \
 - runner 参数 `--openclaw_bin` 会被 bridge 转成 CUA CLI 的 `--openclaw-bin`；不传时默认使用本目录的 `bin/openclaw`。
 - runner 参数 `--os_type Windows|Ubuntu|Darwin` 会被 bridge 转成 CUA CLI 的 `--target-os win32|linux|darwin`。
 
-`bin/openclaw` 当前只支持这个最小命令：
+`bin/openclaw` 当前只支持 `nodes invoke` 这个最小子命令：
 
 ```text
 openclaw nodes invoke \
   --node <node-id> \
-  --command cua.run \
+  --command <command> \
   --params <json>
 ```
+
+支持的 `--command` 格式：
+
+| command | 说明 |
+| --- | --- |
+| `cua.run` | 旧版 CUA 格式，`params.tool` 必须存在 |
+| `run` | `cua.run` 的兼容别名，`params.tool` 必须存在 |
+| `cua.<tool>` | 新版 CUA 格式；如果 `params.tool` 缺失，shim 会从 command 补齐 |
 
 shim 会校验环境变量和请求参数：
 
 - `OSWORLD_CUA_BRIDGE_URL`：BridgeServer 地址，必须存在。
 - `OSWORLD_CUA_NODE_ID`：当前 run 的 node id；如果设置，`--node` 必须一致。
 - `OSWORLD_CUA_RUN_ID`：当前 run id；shim 会用它规范化 payload 中的 `runId`。
-- `--command`：只接受 `cua.run`。
+- `--command`：只接受 `cua.run`、`run` 或 `cua.<tool>`。
 - `--params`：必须是 JSON object。
+
+如果 `--command cua.<tool>` 和 `params.tool` 同时存在但不一致，shim 会返回结构化错误，不会把请求转给 BridgeServer。
 
 它不支持真实 OpenClaw 的完整能力。例如 `attachment download` 或其他子命令会直接返回 `unsupported openclaw shim command`。这是刻意收窄的设计：OSWorld benchmark 只需要把 CUA tool call 转进本地 bridge，不需要引入完整 OpenClaw 依赖。
 

@@ -88,7 +88,7 @@ CUA blackbox 相关脚本分为四类：本地 smoke、真实环境探针、case
 | `scripts/python/cua_bridge_vm_functional_test.py` | 可执行真实 VM 探针 | 连接真实 `DesktopEnv`，逐个验证 `screenshot`、屏幕尺寸、鼠标、键盘等 bridge tool 能否落到 VM | `functional_report.json`、截图、`runtime.log` |
 | `scripts/python/check_osworld_env_step.py` | 可执行真实 VM 探针 | 直接验证 OSWorld 原生 `DesktopEnv.step()` 是否能在真实 VM 上执行，排除 CUA bridge 之外的环境问题 | `env_step_report.json`、step 截图、`runtime.log` |
 | `scripts/python/check_cua_case_acceptance.py` | 可执行 case 验收 | 对新增或指定 case 做分阶段验收：静态检查、reset 截图、初始 evaluate、可选 blackbox 单跑 | `case_acceptance_report.json` |
-| `scripts/python/check_cua_blackbox_compatibility.py` | 可执行兼容性检查 | 检查 CUA binary、`--config`、`--openclaw-bin`、配置文件、openclaw shim 和 case 静态合法性 | `compatibility_report.json` |
+| `scripts/python/check_cua_blackbox_compatibility.py` | 可执行兼容性检查 | 检查 CUA binary、`--config`、`--openclaw-bin`、target-os 映射、openclaw shim command 兼容性和 case 静态合法性 | `compatibility_report.json` |
 | `scripts/python/build_cua_blackbox_summary.py` | 可执行汇总工具 | 从已有 blackbox 结果目录重建 `summary/`，可选继续生成 `report/` | `summary.json`、`summary.csv`、可选 `report/` |
 | `scripts/python/build_cua_blackbox_report.py` | 可执行报告工具 | 从 `summary/` 以及可选 smoke/functional/compatibility/case 验收报告生成可读报告 | `report.json`、`report.md`、`index.html` |
 | `scripts/python/cua_case_resolver.py` | 内部 helper | 在 OSWorld 原始 case 目录和 `evaluation_examples/cua_blackbox/cases/` 之间解析实际 case JSON 路径 | 被 runner / validator import |

@@ -12,7 +12,8 @@ import time
 from multiprocessing import Manager, Process, current_process
 from typing import List
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.insert(0, ROOT_DIR)
 
 import lib_run_single
 from osworld_cua_bridge.failures import RECORDING_FAILED, UNKNOWN_ERROR, read_failure_summary, write_failure
@@ -20,6 +21,7 @@ from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH
 from osworld_cua_bridge.reporting import blackbox_result_root, build_blackbox_summary, summary_metadata_from_args
 from scripts.python.cua_blackbox_defaults import CUA_BLACKBOX_CASES_DIR
 from scripts.python.cua_case_resolver import resolve_case_path
+from scripts.python.cua_local_targets import load_repo_dotenv, resolve_path_to_vm_from_env
 from scripts.python.build_cua_blackbox_report import build_report, write_outputs
 
 
@@ -27,13 +29,7 @@ active_environments = []
 processes = []
 is_terminating = False
 
-if os.path.exists(".env"):
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv()
-    except ImportError:
-        pass
+load_repo_dotenv(ROOT_DIR)
 
 
 def config() -> argparse.Namespace:
@@ -115,6 +111,7 @@ def config() -> argparse.Namespace:
     parser.add_argument("--enable_recording", action="store_true", help="Force recording even when the OS default disables it.")
 
     args = parser.parse_args()
+    args.path_to_vm = resolve_path_to_vm_from_env(args.path_to_vm, args.provider_name, args.os_type)
     if args.eval_profile is None:
         args.eval_profile = _default_eval_profile(args.os_type)
     if args.enable_recording:

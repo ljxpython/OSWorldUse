@@ -9,6 +9,22 @@ import urllib.error
 import urllib.request
 
 
+def _print_error(message: str, *, details: dict | None = None) -> None:
+    print(
+        json.dumps(
+            {
+                "ok": False,
+                "error": {
+                    "code": "BAD_REQUEST",
+                    "message": message,
+                    "details": details or {},
+                },
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
 def _post_json(url: str, payload: dict) -> tuple[str, int | None]:
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
@@ -29,34 +45,59 @@ def nodes_invoke(argv: list[str]) -> int:
     bridge_url = os.environ.get("OSWORLD_CUA_BRIDGE_URL", "").rstrip("/")
     expected_node = os.environ.get("OSWORLD_CUA_NODE_ID", "")
     if not bridge_url:
-        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": "OSWORLD_CUA_BRIDGE_URL is not set"}}))
+        _print_error("OSWORLD_CUA_BRIDGE_URL is not set")
         return 2
     if expected_node and args.node != expected_node:
-        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": f"node mismatch: expected {expected_node}, got {args.node}"}}))
-        return 2
-    if args.command != "cua.run":
-        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": f"unsupported command: {args.command}"}}))
+        _print_error(
+            f"node mismatch: expected {expected_node}, got {args.node}",
+            details={"expectedNode": expected_node, "actualNode": args.node},
+        )
         return 2
 
     try:
         payload = json.loads(args.params)
     except json.JSONDecodeError as exc:
-        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": f"params is not valid JSON: {exc}"}}))
+        _print_error(f"params is not valid JSON: {exc}")
         return 2
     if not isinstance(payload, dict):
-        print(json.dumps({"ok": False, "error": {"code": "BAD_REQUEST", "message": "params must be a JSON object"}}))
+        _print_error("params must be a JSON object")
+        return 2
+
+    normalized_payload, error_message = _normalize_payload(args.command, payload)
+    if error_message:
+        _print_error(error_message, details={"command": args.command, "payloadTool": payload.get("tool")})
         return 2
 
     expected_run_id = os.environ.get("OSWORLD_CUA_RUN_ID", "").strip()
     if expected_run_id:
-        cua_run_id = payload.get("runId")
+        cua_run_id = normalized_payload.get("runId")
         if cua_run_id and cua_run_id != expected_run_id:
-            payload["cuaRunId"] = cua_run_id
-        payload["runId"] = expected_run_id
+            normalized_payload["cuaRunId"] = cua_run_id
+        normalized_payload["runId"] = expected_run_id
 
-    body, status = _post_json(f"{bridge_url}/invoke", payload)
+    body, status = _post_json(f"{bridge_url}/invoke", normalized_payload)
     print(body)
     return 0 if body else 1
+
+
+def _normalize_payload(command: str, payload: dict) -> tuple[dict, str | None]:
+    if command in {"cua.run", "run"}:
+        if not str(payload.get("tool") or "").strip():
+            return payload, f"{command} requires params.tool"
+        return payload, None
+
+    prefix = "cua."
+    if not command.startswith(prefix) or command == prefix:
+        return payload, f"unsupported command: {command}"
+
+    tool = command[len(prefix):].strip()
+    payload_tool = str(payload.get("tool") or "").strip()
+    if payload_tool and payload_tool != tool:
+        return payload, f"command/tool mismatch: command {command} conflicts with params.tool {payload_tool}"
+
+    normalized = dict(payload)
+    normalized["tool"] = tool
+    return normalized, None
 
 
 def main() -> int:

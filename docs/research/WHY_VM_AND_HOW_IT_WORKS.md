@@ -536,7 +536,7 @@ POST /run_bash_script
 
 配套流程图见：
 
-- [OSWorld 虚拟机 Benchmark 运行流程图（SVG）](/Users/bytedance/PycharmProjects/test5/osworld/docs/diagrams/osworld-vm-runtime-flow.svg)
+- [OSWorld 虚拟机 Benchmark 运行流程图（SVG）](../diagrams/osworld-vm-runtime-flow.svg)
 
 ---
 

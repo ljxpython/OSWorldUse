@@ -358,7 +358,7 @@ uv run python scripts/python/check_cua_case_acceptance.py \
 
 这些 CUA 相关参数既可以通过 CLI 传入，也可以通过环境变量作为默认值传入。CLI 参数优先级高于环境变量。
 
-本仓库会在启动 CUA blackbox 相关入口时尝试加载仓库根目录 `.env`。`.env` 只保存本机路径、密钥和本地 timeout 默认值，不提交到仓库；代码中不保留 `/Users/.../cua` 这类本机硬编码 fallback。
+本仓库会在启动 CUA blackbox 相关入口时尝试加载仓库根目录 `.env`。`.env` 只保存本机路径、密钥和本地 timeout 默认值，不提交到仓库；代码中不保留 `<cua-repo>` 这类本机硬编码 fallback。
 
 | CLI 参数 | 环境变量 | 建议 |
 | --- | --- | --- |
@@ -457,7 +457,7 @@ python3 scripts/python/cua_smoke_test.py --result_dir ./results_cua_smoke
 ```bash
 uv run python scripts/python/run_multienv_cua_blackbox.py \
   --provider_name vmware \
-  --path_to_vm /Users/bytedance/PycharmProjects/test5/osworld/vmware_vm_data/Ubuntu0/Ubuntu0.vmx \
+  --path_to_vm <vmware-vmx-path> \
   --headless \
   --action_space pyautogui \
   --observation_type screenshot \

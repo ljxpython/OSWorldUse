@@ -19,9 +19,11 @@ sys.path.insert(0, ROOT_DIR)
 from osworld_cua_bridge.executor import CuaBridgeExecutor
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from osworld_cua_bridge.server import BridgeServer
+from scripts.python.cua_local_targets import load_repo_dotenv, resolve_path_to_vm_from_env
 
 
 logger = logging.getLogger("desktopenv.cua_bridge_functional")
+load_repo_dotenv(ROOT_DIR)
 
 
 @dataclass(frozen=True)
@@ -50,11 +52,17 @@ class StepResult:
 
 def config() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a real-VM functional test for the CUA blackbox bridge tools")
-    parser.add_argument("--provider_name", type=str, default="vmware", choices=["aws", "virtualbox", "vmware", "docker", "azure"])
+    parser.add_argument(
+        "--provider_name",
+        type=str,
+        default="vmware",
+        choices=["aws", "virtualbox", "vmware", "docker", "azure", "aliyun", "volcengine", "remote"],
+    )
     parser.add_argument("--region", type=str, default="us-east-1")
     parser.add_argument("--path_to_vm", type=str, default=None)
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--client_password", type=str, default="")
+    parser.add_argument("--os_type", type=str, default="Ubuntu", choices=["Ubuntu", "Windows", "Darwin"])
     parser.add_argument("--screen_width", type=int, default=1920)
     parser.add_argument("--screen_height", type=int, default=1080)
     parser.add_argument("--snapshot_name", type=str, default="init_state")
@@ -77,7 +85,9 @@ def config() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="INFO",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.path_to_vm = resolve_path_to_vm_from_env(args.path_to_vm, args.provider_name, args.os_type)
+    return args
 
 
 def setup_logging(result_dir: str, level: str) -> None:
@@ -261,7 +271,7 @@ def write_report(result_dir: str, args: argparse.Namespace, run_id: str, node_id
         "failure_types": sorted({step.failure_type for step in steps if step.failure_type}),
         "adapter_version": "blackbox-v1",
         "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
-        "eval_profile": "ubuntu-cua-bridge-functional-v1",
+        "eval_profile": f"{args.os_type.lower()}-cua-bridge-functional-v1",
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "args": vars(args),
         "artifact_paths": {
@@ -314,7 +324,7 @@ def run() -> int:
             snapshot_name=args.snapshot_name,
             screen_size=(args.screen_width, args.screen_height),
             headless=args.headless,
-            os_type="Ubuntu",
+            os_type=args.os_type,
             require_a11y_tree=False,
             enable_proxy=False,
             client_password=args.client_password,

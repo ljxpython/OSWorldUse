@@ -24,8 +24,8 @@
 
 图文件：
 
-- [agent-main-chain.svg](/Users/bytedance/PycharmProjects/test5/osworld/docs/code-reading/assets/agent-diagrams/agent-main-chain.svg)
-- [agent-main-chain.png](/Users/bytedance/PycharmProjects/test5/osworld/docs/code-reading/assets/agent-diagrams/agent-main-chain.png)
+- [agent-main-chain.svg](./assets/agent-diagrams/agent-main-chain.svg)
+- [agent-main-chain.png](./assets/agent-diagrams/agent-main-chain.png)
 
 ![OSWorld Agent Runtime Main Chain](./assets/agent-diagrams/agent-main-chain.png)
 
@@ -60,8 +60,8 @@
 
 图文件：
 
-- [agent-standard-vs-special.svg](/Users/bytedance/PycharmProjects/test5/osworld/docs/code-reading/assets/agent-diagrams/agent-standard-vs-special.svg)
-- [agent-standard-vs-special.png](/Users/bytedance/PycharmProjects/test5/osworld/docs/code-reading/assets/agent-diagrams/agent-standard-vs-special.png)
+- [agent-standard-vs-special.svg](./assets/agent-diagrams/agent-standard-vs-special.svg)
+- [agent-standard-vs-special.png](./assets/agent-diagrams/agent-standard-vs-special.png)
 
 ![Standard Runner vs Special-case Runner](./assets/agent-diagrams/agent-standard-vs-special.png)
 
@@ -115,8 +115,8 @@
 
 图文件：
 
-- [agent-config-map.svg](/Users/bytedance/PycharmProjects/test5/osworld/docs/code-reading/assets/agent-diagrams/agent-config-map.svg)
-- [agent-config-map.png](/Users/bytedance/PycharmProjects/test5/osworld/docs/code-reading/assets/agent-diagrams/agent-config-map.png)
+- [agent-config-map.svg](./assets/agent-diagrams/agent-config-map.svg)
+- [agent-config-map.png](./assets/agent-diagrams/agent-config-map.png)
 
 ![What You Must Configure Before Practicing Agents](./assets/agent-diagrams/agent-config-map.png)
 

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from typing import Any
 
@@ -13,7 +15,7 @@ from typing import Any
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, ROOT_DIR)
 
-from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH, resolve_cua_command
+from osworld_cua_bridge.launcher import DEFAULT_CUA_CONFIG_PATH, resolve_cua_command, target_os_from_os_type
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION
 from scripts.python.cua_blackbox_defaults import CUA_BLACKBOX_CASES_DIR
 from scripts.python.validate_cua_regression_cases import DEFAULT_CASES_DIR, DEFAULT_META_PATH, validate_cases
@@ -116,6 +118,175 @@ def _help_text(result: dict[str, Any]) -> str:
     return f"{result.get('stdout') or ''}\n{result.get('stderr') or ''}"
 
 
+class _InvokeHandler(BaseHTTPRequestHandler):
+    def do_POST(self) -> None:
+        if self.path != "/invoke":
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        length = int(self.headers.get("Content-Length") or "0")
+        body = self.rfile.read(length).decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            payload = {"_invalid": body}
+        self.server.received_payloads.append(payload)  # type: ignore[attr-defined]
+
+        response = json.dumps({"ok": True, "payload": {"type": "tool_result", "output": "ok"}}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
+
+    def log_message(self, format: str, *args: Any) -> None:
+        return
+
+
+def _run_openclaw_invoke(
+    openclaw_bin: str,
+    bridge_url: str,
+    command: str,
+    params: dict[str, Any],
+    *,
+    node_id: str,
+    run_id: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    env = os.environ.copy()
+    env.update(
+        {
+            "OSWORLD_CUA_BRIDGE_URL": bridge_url,
+            "OSWORLD_CUA_NODE_ID": node_id,
+            "OSWORLD_CUA_RUN_ID": run_id,
+        }
+    )
+    full_command = [
+        sys.executable,
+        openclaw_bin,
+        "nodes",
+        "invoke",
+        "--node",
+        node_id,
+        "--command",
+        command,
+        "--params",
+        json.dumps(params, ensure_ascii=False),
+    ]
+    started_at = time.time()
+    try:
+        completed = subprocess.run(
+            full_command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_seconds,
+            check=False,
+            env=env,
+        )
+        parsed_stdout: dict[str, Any] | None = None
+        try:
+            parsed_stdout = json.loads(completed.stdout)
+        except json.JSONDecodeError:
+            parsed_stdout = None
+        return {
+            "command": command,
+            "exit_code": int(completed.returncode),
+            "duration_seconds": time.time() - started_at,
+            "stdout": completed.stdout[-1000:],
+            "stderr": completed.stderr[-1000:],
+            "parsed_stdout": parsed_stdout,
+        }
+    except Exception as exc:
+        return {
+            "command": command,
+            "exit_code": None,
+            "duration_seconds": time.time() - started_at,
+            "stdout": "",
+            "stderr": str(exc),
+            "parsed_stdout": None,
+        }
+
+
+def _check_openclaw_command_contract(openclaw_bin: str, timeout_seconds: float) -> dict[str, Any]:
+    if not os.path.isfile(openclaw_bin):
+        return {"passed": False, "reason": "openclaw shim not found", "results": []}
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _InvokeHandler)
+    server.received_payloads = []  # type: ignore[attr-defined]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    bridge_url = f"http://127.0.0.1:{server.server_address[1]}"
+    node_id = "compat-node"
+    run_id = "compat-run"
+    results: list[dict[str, Any]] = []
+    failures: list[str] = []
+    try:
+        cases = [
+            ("legacy_cua_run", "cua.run", {"runId": run_id, "reqId": "legacy", "tool": "get_screen_size", "args": {}}, True, "get_screen_size"),
+            ("alias_run", "run", {"runId": run_id, "reqId": "alias", "tool": "get_cursor_position", "args": {}}, True, "get_cursor_position"),
+            ("new_cua_tool", "cua.screenshot", {"runId": "native-run", "reqId": "new-tool", "args": {}}, True, "screenshot"),
+            ("mismatch", "cua.screenshot", {"runId": run_id, "reqId": "mismatch", "tool": "mouse_click", "args": {}}, False, None),
+        ]
+        for case_name, command, params, should_pass, expected_tool in cases:
+            before_count = len(server.received_payloads)  # type: ignore[attr-defined]
+            result = _run_openclaw_invoke(
+                openclaw_bin,
+                bridge_url,
+                command,
+                params,
+                node_id=node_id,
+                run_id=run_id,
+                timeout_seconds=timeout_seconds,
+            )
+            received = list(server.received_payloads)  # type: ignore[attr-defined]
+            new_payload = received[-1] if len(received) > before_count else None
+            result["case"] = case_name
+            result["received_payload"] = new_payload
+            results.append(result)
+
+            parsed = result.get("parsed_stdout") or {}
+            if should_pass:
+                if result.get("exit_code") != 0 or parsed.get("ok") is not True:
+                    failures.append(f"{case_name} did not return ok")
+                    continue
+                if not isinstance(new_payload, dict):
+                    failures.append(f"{case_name} did not reach bridge")
+                    continue
+                if new_payload.get("tool") != expected_tool:
+                    failures.append(f"{case_name} tool mismatch: {new_payload.get('tool')} != {expected_tool}")
+                if new_payload.get("runId") != run_id:
+                    failures.append(f"{case_name} runId was not normalized")
+                if case_name == "new_cua_tool" and new_payload.get("cuaRunId") != "native-run":
+                    failures.append("new_cua_tool did not preserve original CUA runId")
+            else:
+                if result.get("exit_code") == 0 or parsed.get("ok") is not False:
+                    failures.append(f"{case_name} should fail with a structured error")
+                if len(received) != before_count:
+                    failures.append(f"{case_name} should not reach bridge")
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+        server.server_close()
+
+    return {"passed": not failures, "failures": failures, "results": results}
+
+
+def _check_target_os_mapping() -> dict[str, Any]:
+    expected = {
+        "Windows": "win32",
+        "win32": "win32",
+        "Ubuntu": "linux",
+        "Darwin": "darwin",
+        "macOS": "darwin",
+        "mac": "darwin",
+    }
+    actual = {os_type: target_os_from_os_type(os_type) for os_type in expected}
+    failures = [f"{os_type}: {actual[os_type]} != {target}" for os_type, target in expected.items() if actual[os_type] != target]
+    return {"passed": not failures, "expected": expected, "actual": actual, "failures": failures}
+
+
 def build_report(args: argparse.Namespace) -> dict[str, Any]:
     result_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(args.result_dir)))
     config_path = _abs_path(args.cua_config_path)
@@ -130,6 +301,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     checks.append(_check("cua_config_exists", os.path.isfile(config_path), {"path": config_path}))
     checks.append(_check("openclaw_exists", os.path.isfile(openclaw_bin), {"path": openclaw_bin}))
     checks.append(_check("cua_binary_resolved", bool(cua_binary_path), {"command": cua_command, "binary_path": cua_binary_path}))
+    target_os_mapping = _check_target_os_mapping()
+    checks.append(_check("target_os_mapping", target_os_mapping["passed"], target_os_mapping))
+    openclaw_contract = _check_openclaw_command_contract(openclaw_bin, args.timeout_seconds)
+    checks.append(_check("openclaw_shim_command_contract", openclaw_contract["passed"], openclaw_contract))
 
     rows, case_errors = validate_cases(meta_path, cases_dir, cua_cases_dir)
     checks.append(
@@ -206,6 +381,9 @@ def main() -> int:
         if details.get("errors"):
             for error in details["errors"]:
                 print(f"  {error}")
+        if details.get("failures"):
+            for failure in details["failures"]:
+                print(f"  {failure}")
     return 0 if report["passed"] else 1
 
 
