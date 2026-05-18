@@ -1,6 +1,6 @@
 # CUA Benchmark 评测使用手册
 
-最后更新：2026-05-12
+最后更新：2026-05-18
 
 这份文档面向使用本项目执行 CUA blackbox benchmark 的评测人员。目标是让评测人员不需要理解所有源码，也能完成：
 
@@ -26,6 +26,16 @@ uv run python "scripts/python/run_multienv_cua_blackbox.py" ...
 - `volcengine`：用于严肃评测。runner 会按 `.env` 创建 ECS，跑完后删除 ECS 并释放 EIP。
 - `remote`：用于连接已有 ECS 做调试。runner 不创建、不删除、不回滚机器。
 - `vmware`：用于连接本地 VMware Fusion VM 做 Ubuntu 调试。runner 会复用 `.env` 中配置的 `.vmx` 路径。
+
+脚本当前还接受其他 provider 值：
+
+- `aws`
+- `virtualbox`
+- `docker`
+- `azure`
+- `aliyun`
+
+但这份手册当前只把 `volcengine`、`remote`、`vmware` 作为主线评测或常用联调路径。
 
 当前 `.env` 约定：
 
@@ -375,6 +385,14 @@ uv run python "scripts/python/run_multienv_cua_blackbox.py" \
 ```
 
 这条路径会启动或复用本地 VM，并按 VMware provider 的逻辑执行快照 reset。
+
+如果某些 `proxy=true` 的 case 在本地 VMware 或已有 ECS 上明确是因为任务代理配置失败而不是站点本身不可达，可以在复跑时临时追加：
+
+```bash
+--disable_task_proxy
+```
+
+这个开关只会关闭 task-level proxy setup，不会影响 `vmware` provider 自身的启动、IP 获取或快照 reset 逻辑。
 
 如果只是先确认本地 VMware VM 的基础链路，可以跑：
 
@@ -896,9 +914,9 @@ env \
 
 | 参数 | 说明 | 常用值 |
 | --- | --- | --- |
-| `--os_type` | 目标系统类型，决定 examples 目录和 CUA target OS | `Windows`、`Ubuntu` |
-| `--provider_name` | VM provider | `volcengine`、`remote` |
-| `--path_to_vm` | 已有 ECS 地址，只有 `remote` 必填 | `<host>:5000:9222:8006:8080` |
+| `--os_type` | 目标系统类型，决定 examples 目录和 CUA target OS | 常用：`Ubuntu`、`Windows`；脚本还接受 `Darwin`，但当前 benchmark 主线通常不用 |
+| `--provider_name` | VM provider | 本手册常用：`volcengine`、`remote`、`vmware`；脚本还接受 `aws`、`virtualbox`、`docker`、`azure`、`aliyun` |
+| `--path_to_vm` | 已有机器地址或本地 `.vmx` 路径；显式传参时优先级最高 | `remote` 常用 `<host>:5000:9222:8006:8080`；`vmware` 常用 `<path-to-vmx>` |
 | `--test_all_meta_path` | suite JSON 路径 | `windows_smoke.json`、`windows_office_core.json` |
 | `--domain` | 跑哪个 domain | `all`、`excel`、`word`、`ppt` |
 | `--example_id` | 指定单个 case，不传则跑 domain 下所有 case | case UUID |
@@ -913,6 +931,7 @@ env \
 | `--cua_timeout_grace_seconds` | 超时后进程清理宽限 | `30` |
 | `--enable_recording` | 强制开启录屏 | Windows 验证建议开启 |
 | `--disable_recording` | 关闭录屏 | 大规模跑分可考虑 |
+| `--disable_task_proxy` | 禁用 task-level proxy setup，即使 case 声明 `proxy=true` | 仅在确认旧失败是代理误伤、且环境本身可直接访问目标站点时使用 |
 | `--build_report` | 生成 HTML report | 建议开启 |
 | `--log_level` | 日志级别 | `INFO` |
 | `--dry_run` | 只解析任务，不创建环境 | 排查 `Total tasks: 0` |
@@ -974,6 +993,28 @@ uv run python "scripts/python/run_multienv_cua_blackbox.py" \
   --result_dir "./results_dry_run" \
   --dry_run
 ```
+
+### 10.4 `--disable_task_proxy`
+
+这个开关用于关闭 task-level proxy setup：
+
+```bash
+--disable_task_proxy
+```
+
+行为边界：
+
+- 它只影响 case 里的 `proxy=true` 逻辑是否触发 `SetupController._proxy_setup(...)`。
+- 它不影响 `provider_name` 自己的控制面行为。
+- 它不影响 `VOLCENGINE_USE_PRIVATE_IP=0/1` 这类 runner 到 ECS 的连接方式。
+
+适用场景：
+
+- 旧结果已经明确显示 `ERR_PROXY_*`、`proxy authentication`、`wait_for_user` 卡在代理问题。
+- 你已经人工确认 guest 本身可以直接访问目标站点，例如本地 VMware 或已有 ECS 上直接打开 `speedtest.net` 正常。
+- 你想先判断失败到底是代理误伤，还是 CUA/站点交互本身的问题。
+
+不建议默认长期带着它跑所有 benchmark。更稳的做法仍然是先确认代理配置本身可用，再决定是否关闭 task-level proxy。
 
 ## 11. 查看结果和报告
 
@@ -1234,6 +1275,43 @@ Failed to get file from VM: C:\Users\User\Desktop\pre.pptx
 - `cua.stdout.log`
 - 拉回的目标文件
 - evaluator debug 日志
+
+### 14.7 代理误伤导致的假失败
+
+典型症状：
+
+- `cua.stdout.log` 出现 `ERR_PROXY_*`、`proxy authentication`、`browser can't access ... due to proxy issues`
+- CUA 早早进入 `wait_for_user`，要求人工处理代理问题
+- `bridge_error_count=0`，但页面根本没进入正常任务状态
+
+如果你已经确认 guest 本身可以直接访问目标站点，可以用同一个 case 追加 `--disable_task_proxy` 做复跑，对比是否仍然失败。
+
+例如复跑 `speedtest.net` 这类 case：
+
+```bash
+env VOLCENGINE_USE_PRIVATE_IP=0 \
+  uv run python "scripts/python/run_multienv_cua_blackbox.py" \
+  --os_type Ubuntu \
+  --provider_name volcengine \
+  --test_all_meta_path "evaluation_examples/test_nogdrive.json" \
+  --domain multi_apps \
+  --example_id "26660ad1-6ebb-4f59-8cba-a8432dfe8d38" \
+  --model "ubuntu-speedtest-recheck" \
+  --result_dir "./results_ubuntu_speedtest_recheck" \
+  --num_envs 1 \
+  --max_steps 150 \
+  --env_ready_sleep 10 \
+  --settle_sleep 5 \
+  --cua_max_duration_ms 420000 \
+  --cua_max_step_duration_ms 60000 \
+  --cua_timeout_grace_seconds 30 \
+  --enable_recording \
+  --build_report \
+  --log_level INFO \
+  --disable_task_proxy
+```
+
+如果去掉 task proxy 后 case 不再报代理错误，但仍然失败，那说明主问题已经从“代理配置”切换成“CUA 自己的站点交互或收尾策略”。
 
 ## 15. 推荐评测流程
 
