@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import os
+import textwrap
 import threading
 import time
 from typing import Any
@@ -660,93 +661,318 @@ class CuaBridgeExecutor:
 
     @staticmethod
     def _linux_app_open_command(app_repr: str, wait_seconds: float) -> str:
-        return (
-            "import json, os, shutil, subprocess, time\n"
-            f"_cua_app = {app_repr}\n"
-            f"_cua_wait_seconds = {wait_seconds!r}\n"
-            "_cua_errors = []\n"
-            "_cua_search_paths = [\n"
-            "    '/usr/share/applications',\n"
-            "    '/usr/local/share/applications',\n"
-            "    os.path.expanduser('~/.local/share/applications'),\n"
-            "    os.path.expanduser('~/.local/share/flatpak/exports/share/applications'),\n"
-            "    '/var/lib/flatpak/exports/share/applications',\n"
-            "]\n"
-            "\n"
-            "def _cua_sleep():\n"
-            "    if _cua_wait_seconds > 0:\n"
-            "        time.sleep(_cua_wait_seconds)\n"
-            "\n"
-            "def _cua_success(strategy, **extra):\n"
-            "    _cua_sleep()\n"
-            "    payload = {'event': 'app_open', 'os': 'linux', 'strategy': strategy, **extra}\n"
-            "    print(json.dumps(payload, ensure_ascii=False))\n"
-            "\n"
-            "def _cua_find_desktop_file(name):\n"
-            "    candidates = [name]\n"
-            "    if not name.endswith('.desktop'):\n"
-            "        candidates.append(f'{name}.desktop')\n"
-            "    lowered = name.lower()\n"
-            "    for directory in _cua_search_paths:\n"
-            "        if not os.path.isdir(directory):\n"
-            "            continue\n"
-            "        for candidate in candidates:\n"
-            "            path = os.path.join(directory, candidate)\n"
-            "            if os.path.exists(path):\n"
-            "                return path\n"
-            "        try:\n"
-            "            for filename in os.listdir(directory):\n"
-            "                if not filename.endswith('.desktop'):\n"
-            "                    continue\n"
-            "                path = os.path.join(directory, filename)\n"
-            "                try:\n"
-            "                    with open(path, 'r', encoding='utf-8', errors='ignore') as file:\n"
-            "                        content = file.read().lower()\n"
-            "                except OSError:\n"
-            "                    continue\n"
-            "                if lowered in filename.lower() or f'name={lowered}' in content:\n"
-            "                    return path\n"
-            "        except OSError:\n"
-            "            continue\n"
-            "    return None\n"
-            "\n"
-            "try:\n"
-            "    result = subprocess.run(['gtk-launch', _cua_app], text=True, capture_output=True, timeout=5)\n"
-            "    if result.returncode == 0:\n"
-            "        _cua_success('gtk-launch', app=_cua_app)\n"
-            "        raise SystemExit(0)\n"
-            "    _cua_errors.append(f\"gtk-launch: {(result.stderr or result.stdout or 'failed')[:200]}\")\n"
-            "except Exception as exc:\n"
-            "    _cua_errors.append(f'gtk-launch: {str(exc)[:100]}')\n"
-            "\n"
-            "try:\n"
-            "    desktop_file = _cua_find_desktop_file(_cua_app)\n"
-            "    if desktop_file:\n"
-            "        result = subprocess.run(['gio', 'launch', desktop_file], text=True, capture_output=True, timeout=5)\n"
-            "        if result.returncode == 0:\n"
-            "            _cua_success('gio-launch', desktop_file=desktop_file)\n"
-            "            raise SystemExit(0)\n"
-            "        _cua_errors.append(f\"gio launch: {(result.stderr or result.stdout or 'failed')[:200]}\")\n"
-            "except Exception as exc:\n"
-            "    _cua_errors.append(f'gio: {str(exc)[:100]}')\n"
-            "\n"
-            "try:\n"
-            "    result = subprocess.run(['xdg-open', _cua_app], text=True, capture_output=True, timeout=6)\n"
-            "    if result.returncode == 0:\n"
-            "        _cua_success('xdg-open', app=_cua_app)\n"
-            "        raise SystemExit(0)\n"
-            "    _cua_errors.append(f\"xdg-open: {(result.stderr or result.stdout or 'failed')[:200]}\")\n"
-            "except Exception as exc:\n"
-            "    _cua_errors.append(f'xdg-open: {str(exc)[:100]}')\n"
-            "\n"
-            "try:\n"
-            "    executable = shutil.which(_cua_app)\n"
-            "    if executable:\n"
-            "        subprocess.Popen([executable], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)\n"
-            "        _cua_success('exec', app=_cua_app, executable=executable)\n"
-            "        raise SystemExit(0)\n"
-            "except Exception as exc:\n"
-            "    _cua_errors.append(f'exec: {str(exc)[:100]}')\n"
-            "\n"
-            "raise RuntimeError('Linux app_open failed: ' + ' | '.join(_cua_errors))\n"
-        )
+        script = """
+            import json, os, shlex, shutil, subprocess, time, urllib.parse
+
+            _cua_app = __CUA_APP_REPR__
+            _cua_wait_seconds = __CUA_WAIT_SECONDS__
+            _cua_errors = []
+            _cua_search_paths = [
+                '/usr/share/applications',
+                '/usr/local/share/applications',
+                os.path.expanduser('~/.local/share/applications'),
+                os.path.expanduser('~/.local/share/flatpak/exports/share/applications'),
+                '/var/lib/flatpak/exports/share/applications',
+            ]
+            _cua_file_search_paths = [
+                os.getcwd(),
+                os.path.expanduser('~/Desktop'),
+                os.path.expanduser('~/Documents'),
+                os.path.expanduser('~/Downloads'),
+                os.path.expanduser('~'),
+            ]
+
+            _cua_chrome = {
+                'commands': [['google-chrome'], ['google-chrome-stable'], ['chromium'], ['chromium-browser']],
+                'desktop': ['google-chrome.desktop', 'chromium.desktop', 'chromium-browser.desktop'],
+            }
+            _cua_firefox = {'commands': [['firefox']], 'desktop': ['firefox.desktop']}
+            _cua_gimp = {'commands': [['gimp']], 'desktop': ['gimp.desktop', 'org.gimp.GIMP.desktop']}
+            _cua_libreoffice = {
+                'commands': [['libreoffice'], ['soffice']],
+                'desktop': ['libreoffice-startcenter.desktop'],
+            }
+            _cua_writer = {
+                'commands': [['libreoffice', '--writer'], ['soffice', '--writer']],
+                'desktop': ['libreoffice-writer.desktop'],
+            }
+            _cua_calc = {
+                'commands': [['libreoffice', '--calc'], ['soffice', '--calc']],
+                'desktop': ['libreoffice-calc.desktop'],
+            }
+            _cua_impress = {
+                'commands': [['libreoffice', '--impress'], ['soffice', '--impress']],
+                'desktop': ['libreoffice-impress.desktop'],
+            }
+            _cua_vlc = {'commands': [['vlc']], 'desktop': ['vlc.desktop']}
+            _cua_code = {'commands': [['code']], 'desktop': ['code.desktop']}
+            _cua_terminal = {
+                'commands': [['gnome-terminal'], ['x-terminal-emulator']],
+                'desktop': ['org.gnome.Terminal.desktop', 'gnome-terminal.desktop'],
+            }
+            _cua_aliases = {
+                'chrome': _cua_chrome,
+                'google chrome': _cua_chrome,
+                'firefox': _cua_firefox,
+                'mozilla firefox': _cua_firefox,
+                'gimp': _cua_gimp,
+                'gnu image manipulation program': _cua_gimp,
+                'libreoffice': _cua_libreoffice,
+                'libreoffice writer': _cua_writer,
+                'writer': _cua_writer,
+                'word': _cua_writer,
+                'microsoft word': _cua_writer,
+                'libreoffice calc': _cua_calc,
+                'calc': _cua_calc,
+                'excel': _cua_calc,
+                'microsoft excel': _cua_calc,
+                'libreoffice impress': _cua_impress,
+                'impress': _cua_impress,
+                'powerpoint': _cua_impress,
+                'microsoft powerpoint': _cua_impress,
+                'ppt': _cua_impress,
+                'vlc': _cua_vlc,
+                'vlc media player': _cua_vlc,
+                'vs code': _cua_code,
+                'visual studio code': _cua_code,
+                'code': _cua_code,
+                'terminal': _cua_terminal,
+                'gnome terminal': _cua_terminal,
+            }
+            _cua_desktop_placeholders = {'%f', '%F', '%u', '%U', '%i', '%c', '%k', '%v', '%m'}
+
+            def _cua_sleep():
+                if _cua_wait_seconds > 0:
+                    time.sleep(_cua_wait_seconds)
+
+            def _cua_success(strategy, **extra):
+                _cua_sleep()
+                payload = {'event': 'app_open', 'os': 'linux', 'strategy': strategy, **extra}
+                print(json.dumps(payload, ensure_ascii=False))
+
+            def _cua_norm_name(value):
+                name = os.path.basename(str(value).strip().lower())
+                if name.endswith('.desktop'):
+                    name = name[:-8]
+                for char in ('_', '-'):
+                    name = name.replace(char, ' ')
+                return ' '.join(name.split())
+
+            def _cua_add_unique(items, item, key=None):
+                key = key or item
+                if item and key not in {entry[0] for entry in items}:
+                    items.append((key, item))
+
+            def _cua_is_url(value):
+                lowered = value.strip().lower()
+                return lowered.startswith(('http://', 'https://', 'file://'))
+
+            def _cua_expand_path(value):
+                return os.path.abspath(os.path.expandvars(os.path.expanduser(value)))
+
+            def _cua_resolve_file_target(value):
+                raw = value.strip()
+                if not raw:
+                    return None
+                if raw.lower().startswith('file://'):
+                    parsed = urllib.parse.urlparse(raw)
+                    path = urllib.parse.unquote(parsed.path)
+                    if path and os.path.exists(path):
+                        return os.path.abspath(path)
+                    return None
+                expanded = _cua_expand_path(raw)
+                if os.path.exists(expanded):
+                    return expanded
+                if os.path.isabs(raw) or raw.startswith(('~', '$')) or os.sep in raw:
+                    return None
+                for directory in _cua_file_search_paths:
+                    candidate = os.path.abspath(os.path.join(directory, raw))
+                    if os.path.exists(candidate):
+                        return candidate
+                return None
+
+            def _cua_alias_for(value):
+                return _cua_aliases.get(_cua_norm_name(value), {})
+
+            def _cua_command_candidates(value):
+                items = []
+                alias = _cua_alias_for(value)
+                for command in alias.get('commands', []):
+                    _cua_add_unique(items, list(command), ('alias', tuple(command)))
+                try:
+                    direct = shlex.split(value)
+                except ValueError as exc:
+                    _cua_errors.append(f'shlex split: {str(exc)[:120]}')
+                    direct = []
+                if direct:
+                    _cua_add_unique(items, direct, ('direct', tuple(direct)))
+                normalized = _cua_norm_name(value)
+                if normalized:
+                    for probe in (normalized, normalized.replace(' ', '-'), normalized.replace(' ', '')):
+                        _cua_add_unique(items, [probe], ('probe', probe))
+                return items
+
+            def _cua_desktop_candidates(value):
+                items = []
+                alias = _cua_alias_for(value)
+                names = list(alias.get('desktop', []))
+                stripped = value.strip()
+                normalized = _cua_norm_name(value)
+                names.extend([stripped, normalized, normalized.replace(' ', '-'), normalized.replace(' ', '')])
+                for name in names:
+                    if not name:
+                        continue
+                    desktop_name = name if name.endswith('.desktop') else f'{name}.desktop'
+                    _cua_add_unique(items, desktop_name, desktop_name.lower())
+                return [item for _, item in items]
+
+            def _cua_read_desktop_entry(path):
+                entry = {}
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='ignore') as file:
+                        for line in file:
+                            stripped = line.strip()
+                            if not stripped or stripped.startswith('#') or '=' not in stripped:
+                                continue
+                            key, value = stripped.split('=', 1)
+                            key = key.strip().lower()
+                            if key in {'name', 'genericname', 'exec'} and key not in entry:
+                                entry[key] = value.strip()
+                except OSError as exc:
+                    _cua_errors.append(f'read desktop {path}: {str(exc)[:120]}')
+                return entry
+
+            def _cua_find_desktop_file(value):
+                candidates = _cua_desktop_candidates(value)
+                lowered = _cua_norm_name(value)
+                for directory in _cua_search_paths:
+                    if not os.path.isdir(directory):
+                        continue
+                    for candidate in candidates:
+                        path = os.path.join(directory, candidate)
+                        if os.path.exists(path):
+                            return path
+                for directory in _cua_search_paths:
+                    if not os.path.isdir(directory):
+                        continue
+                    try:
+                        filenames = os.listdir(directory)
+                    except OSError:
+                        continue
+                    for filename in filenames:
+                        if not filename.endswith('.desktop'):
+                            continue
+                        path = os.path.join(directory, filename)
+                        entry = _cua_read_desktop_entry(path)
+                        haystack = ' '.join([filename, entry.get('name', ''), entry.get('genericname', ''), entry.get('exec', '')])
+                        normalized_haystack = _cua_norm_name(haystack)
+                        if lowered and (lowered in normalized_haystack or normalized_haystack in lowered):
+                            return path
+                return None
+
+            def _cua_prepare_launch_args(args):
+                if not args:
+                    return None
+                executable = shutil.which(args[0]) or (args[0] if os.path.exists(args[0]) else None)
+                if not executable:
+                    return None
+                launch_args = [executable] + list(args[1:])
+                basename = os.path.basename(executable).lower()
+                if basename in {'libreoffice', 'soffice'}:
+                    for option in ('--norestore', '--nofirststartwizard', '--nologo'):
+                        if option not in launch_args:
+                            launch_args.append(option)
+                return launch_args
+
+            def _cua_popen(args, strategy, **extra):
+                launch_args = _cua_prepare_launch_args(args)
+                if not launch_args:
+                    _cua_errors.append(f'{strategy}: executable not found: {args[0] if args else ""}')
+                    return False
+                try:
+                    subprocess.Popen(launch_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                    _cua_success(strategy, app=_cua_app, executable=launch_args[0], args=launch_args[1:], **extra)
+                    raise SystemExit(0)
+                except Exception as exc:
+                    _cua_errors.append(f'{strategy}: {str(exc)[:160]}')
+                    return False
+
+            def _cua_open_xdg(target, strategy, **extra):
+                xdg = shutil.which('xdg-open')
+                if not xdg:
+                    _cua_errors.append(f'{strategy}: xdg-open not found')
+                    return False
+                try:
+                    subprocess.Popen([xdg, target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                    _cua_success(strategy, app=_cua_app, target=target, **extra)
+                    raise SystemExit(0)
+                except Exception as exc:
+                    _cua_errors.append(f'{strategy}: {str(exc)[:160]}')
+                    return False
+
+            def _cua_desktop_exec_args(path):
+                entry = _cua_read_desktop_entry(path)
+                raw_exec = entry.get('exec')
+                if not raw_exec:
+                    return []
+                try:
+                    parts = shlex.split(raw_exec)
+                except ValueError as exc:
+                    _cua_errors.append(f'desktop exec parse {path}: {str(exc)[:120]}')
+                    return []
+                return [part for part in parts if part not in _cua_desktop_placeholders and not part.startswith('%')]
+
+            def _cua_try_desktop_file(path):
+                exec_args = _cua_desktop_exec_args(path)
+                if exec_args:
+                    _cua_popen(exec_args, 'desktop-exec', desktop_file=path)
+                desktop_id = os.path.splitext(os.path.basename(path))[0]
+                gtk = shutil.which('gtk-launch')
+                if gtk:
+                    try:
+                        result = subprocess.run([gtk, desktop_id], text=True, capture_output=True, timeout=3)
+                        if result.returncode == 0:
+                            _cua_success('gtk-launch', app=_cua_app, desktop_file=path, desktop_id=desktop_id)
+                            raise SystemExit(0)
+                        _cua_errors.append(f'gtk-launch {desktop_id}: {(result.stderr or result.stdout or "failed")[:160]}')
+                    except subprocess.TimeoutExpired:
+                        _cua_success('gtk-launch-timeout', app=_cua_app, desktop_file=path, desktop_id=desktop_id)
+                        raise SystemExit(0)
+                    except Exception as exc:
+                        _cua_errors.append(f'gtk-launch {desktop_id}: {str(exc)[:160]}')
+                else:
+                    _cua_errors.append('gtk-launch: executable not found')
+                gio = shutil.which('gio')
+                if gio:
+                    try:
+                        subprocess.Popen([gio, 'launch', path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                        _cua_success('gio-launch', app=_cua_app, desktop_file=path)
+                        raise SystemExit(0)
+                    except Exception as exc:
+                        _cua_errors.append(f'gio launch {path}: {str(exc)[:160]}')
+                else:
+                    _cua_errors.append('gio: executable not found')
+
+            _cua_app = str(_cua_app).strip()
+            if not _cua_app:
+                raise RuntimeError('Linux app_open failed: empty app')
+
+            if _cua_is_url(_cua_app):
+                _cua_open_xdg(_cua_app, 'xdg-open-url')
+
+            resolved_path = _cua_resolve_file_target(_cua_app)
+            if resolved_path:
+                _cua_open_xdg(resolved_path, 'xdg-open-file', resolved_path=resolved_path)
+
+            for _, command in _cua_command_candidates(_cua_app):
+                _cua_popen(command, 'exec')
+
+            desktop_file = _cua_find_desktop_file(_cua_app)
+            if desktop_file:
+                _cua_try_desktop_file(desktop_file)
+            else:
+                _cua_errors.append(f'desktop file not found: {_cua_app}')
+
+            raise RuntimeError('Linux app_open failed: ' + ' | '.join(_cua_errors))
+        """
+        return textwrap.dedent(script).strip().replace("__CUA_WAIT_SECONDS__", repr(wait_seconds)).replace("__CUA_APP_REPR__", app_repr)

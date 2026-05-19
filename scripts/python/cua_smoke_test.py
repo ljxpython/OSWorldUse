@@ -5,8 +5,10 @@ import base64
 import csv
 import json
 import os
+import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -285,12 +287,70 @@ def check_bridge_busy(result_dir: str) -> None:
 
 def check_app_open_linux_strategy(result_dir: str) -> None:
     env, executor = _make_executor(result_dir)
-    payload = _assert_ok(_request(executor, "app-open-001", "app_open", {"app": "google-chrome", "wait_ms": 0}))
+    payload = _assert_ok(_request(executor, "app-open-001", "app_open", {"app": "Google Chrome", "wait_ms": 0}))
     assert payload["tool"] == "app_open"
-    assert "gtk-launch" in env.controller.commands[-1]
-    assert "gio" in env.controller.commands[-1]
-    assert "xdg-open" in env.controller.commands[-1]
-    assert "shutil.which" in env.controller.commands[-1]
+    command = env.controller.commands[-1]
+    compile(command, "<linux app_open smoke>", "exec")
+    assert "_cua_aliases" in command
+    assert "'google chrome': _cua_chrome" in command
+    assert "google-chrome-stable" in command
+    assert "chromium-browser" in command
+    assert "_cua_file_search_paths" in command
+    assert "'~/Desktop'" in command
+    assert "'~/Documents'" in command
+    assert "'~/Downloads'" in command
+    assert "desktop-exec" in command
+    assert "gtk-launch" in command
+    assert "gio" in command
+    assert "xdg-open" in command
+    assert "shutil.which" in command
+    assert "start_new_session=True" in command
+
+    _assert_ok(_request(executor, "app-open-002", "app_open", {"app": "reminder.docx", "wait_ms": 0}))
+    assert "_cua_app = 'reminder.docx'" in env.controller.commands[-1]
+    assert "_cua_resolve_file_target" in env.controller.commands[-1]
+    reminder_command = env.controller.commands[-1]
+    with tempfile.TemporaryDirectory() as tmp:
+        root = os.path.abspath(tmp)
+        home = os.path.join(root, "home")
+        desktop = os.path.join(home, "Desktop")
+        bin_dir = os.path.join(root, "bin")
+        os.makedirs(desktop)
+        os.makedirs(bin_dir)
+        reminder_path = os.path.join(desktop, "reminder.docx")
+        with open(reminder_path, "w", encoding="utf-8") as file:
+            file.write("placeholder")
+        xdg_open = os.path.join(bin_dir, "xdg-open")
+        with open(xdg_open, "w", encoding="utf-8") as file:
+            file.write('#!/bin/sh\necho "$@" > "$HOME/xdg-open.args"\n')
+        os.chmod(xdg_open, os.stat(xdg_open).st_mode | stat.S_IXUSR)
+        env_vars = os.environ.copy()
+        env_vars["HOME"] = home
+        env_vars["PATH"] = f"{bin_dir}:{env_vars.get('PATH', '')}"
+        result = subprocess.run(
+            [sys.executable, "-c", reminder_command],
+            cwd=home,
+            env=env_vars,
+            text=True,
+            capture_output=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, result.stderr
+        app_open_payload = json.loads(result.stdout)
+        assert app_open_payload["strategy"] == "xdg-open-file"
+        assert app_open_payload["resolved_path"] == reminder_path
+        xdg_args = os.path.join(home, "xdg-open.args")
+        for _ in range(20):
+            if os.path.exists(xdg_args):
+                break
+            time.sleep(0.05)
+        with open(xdg_args, encoding="utf-8") as file:
+            assert file.read().strip() == reminder_path
+
+    _assert_ok(_request(executor, "app-open-003", "app_open", {"app": "LibreOffice Impress", "wait_ms": 0}))
+    assert "_cua_app = 'LibreOffice Impress'" in env.controller.commands[-1]
+    assert "'libreoffice impress': _cua_impress" in env.controller.commands[-1]
+    assert "--impress" in env.controller.commands[-1]
 
 
 def _run_openclaw_shim(shim: str, env: dict[str, str], command: str, params: dict[str, Any]) -> subprocess.CompletedProcess[str]:

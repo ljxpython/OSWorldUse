@@ -31,6 +31,7 @@
 - [CUA 版本兼容与评测策略](./CUA_EVAL_VERSIONING_POLICY_zh.md)
 - [CUA 冻结字段表](./CUA_FROZEN_FIELDS_zh.md)
 - [CUA Smoke Test 用例表](./CUA_SMOKE_TEST_MATRIX_zh.md)
+- [CUA Linux app_open 修复方案](./CUA_LINUX_APP_OPEN_FIX_PLAN_zh.md)
 - [CUA 方案 A 实现路线图](./IMPLEMENTATION_ROADMAP_zh.md)
 - [CUA 方案 A 实现任务拆分](./IMPLEMENTATION_TASKS_zh.md)
 - [blackbox bridge 实现补充文档](./blackbox/README.md)
