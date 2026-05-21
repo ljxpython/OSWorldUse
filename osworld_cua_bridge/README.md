@@ -195,6 +195,7 @@ blackbox 结果根目录格式：
     result.txt
     runtime.log
     cua_meta.json
+    terminal_mapping.json
     failure_summary.json
     recording.mp4
   summary/
@@ -213,6 +214,7 @@ blackbox 结果根目录格式：
 - `result.txt`：OSWorld evaluator 分数。
 - `runtime.log`：单任务运行日志。
 - `cua_meta.json`：CUA 进程、bridge、openclaw 等运行元数据。
+- `terminal_mapping.json`：CUA blackbox 结束后、`env.evaluate()` 前的终止语义回填记录；普通任务只在 CUA 明确 `done(success=false)` 或 `wait_for_user` 中断时补 `FAIL`，`infeasible` evaluator 任务会对 CUA terminal 失败/结束状态宽松补 `FAIL`，最终仍由 OSWorld evaluator 判分。
 - `failure_summary.json`：标准失败分类。
 - `recording.mp4`：VM 操作录屏，失败排查优先看这个。
 - `summary/`：机器可读汇总。
