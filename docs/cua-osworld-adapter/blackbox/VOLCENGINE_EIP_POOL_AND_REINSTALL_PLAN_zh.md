@@ -202,6 +202,10 @@ registry 记录：
 8. 等待 OSWorld server 可用。
 9. 校验分辨率和关键端口。
 
+当前实现已经提供本地 runner 内的重装并发闸门。它用 `VOLCENGINE_REINSTALL_LOCK_DIR` 下的文件锁限制同时执行重装流程的 ECS 数量，默认最多 5 台。这个闸门覆盖 stop、`ReplaceSystemVolume`、start 和 OSWorld ready 等待，避免 20/30 并发时同时打爆火山云 API 或镜像服务。
+
+这个闸门只保证同一台 runner 上的进程组内限流。多台 runner 共享同一个池时，仍然需要 Redis、数据库或其他外部一致性锁。
+
 建议请求：
 
 ```python
@@ -237,13 +241,63 @@ VOLCENGINE_KEEP_INSTANCE_ON_CLOSE=1
 
 但不要复用脏状态。下一次被分配前仍然必须走 `ReplaceSystemVolume`。
 
-如果需要销毁池，必须提供单独命令，例如：
+当前第一版的运维脚本只支持查看、预热和释放本地 lease，不支持删除 ECS，也不提供 destroy 命令，避免误删云资源。后续如果补销毁命令，也必须逐台执行 `_assert_managed_target()`，并要求人工确认。不要把销毁逻辑塞进普通 benchmark close 路径里。
+
+## 池运维脚本
+
+当前脚本入口：
 
 ```bash
-python "scripts/python/volcengine_pool.py" destroy --pool "osworld-cua"
+scripts/python/volcengine_pool.py
 ```
 
-销毁命令也必须逐台执行 `_assert_managed_target()`。不要把销毁逻辑塞进普通 benchmark close 路径里。
+脚本会加载仓库根目录 `.env`，但仍要求显式启用池化：
+
+```bash
+VOLCENGINE_POOL_ENABLED=1
+```
+
+查看指定 `VOLCENGINE_REGION`、`VOLCENGINE_POOL_NAME`、`VOLCENGINE_IMAGE_ID` 下的池状态：
+
+```bash
+env VOLCENGINE_POOL_ENABLED=1 \
+  uv run python "scripts/python/volcengine_pool.py" status
+```
+
+输出包括：
+
+- `total`：当前通过 tag、镜像、子网、安全组和可用区校验的池内 ECS 数。
+- `free`：未被本地 registry 占用的 ECS 数。
+- `leased`：仍被本地存活进程占用的池内 ECS 数。
+- `orphan_leases`：本地 registry 中仍有记录、但当前池查询不到的 lease 数。
+
+需要机器可读输出时加：
+
+```bash
+env VOLCENGINE_POOL_ENABLED=1 \
+  uv run python "scripts/python/volcengine_pool.py" status --json
+```
+
+预热池到指定大小：
+
+```bash
+env VOLCENGINE_POOL_ENABLED=1 \
+  uv run python "scripts/python/volcengine_pool.py" ensure \
+    --size 30 \
+    --screen_width 1920 \
+    --screen_height 1080
+```
+
+`ensure` 只会补齐不足的 ECS，不会删除多余 ECS，也不会接管不满足安全校验的实例。
+
+如果 runner 异常退出导致本地 lease 没释放，可以只释放本地 registry 里的占用记录：
+
+```bash
+env VOLCENGINE_POOL_ENABLED=1 \
+  uv run python "scripts/python/volcengine_pool.py" release-lease "i-xxxxxxxxxxxxxxxxx"
+```
+
+`release-lease` 不会停止、重装或删除 ECS，只修改本机 `VOLCENGINE_POOL_REGISTRY_PATH` 指向的本地 registry。下一次该 ECS 被分配给 case 前仍会走 `ReplaceSystemVolume`。
 
 ## 和当前实现的对应关系
 
@@ -347,6 +401,11 @@ VOLCENGINE_POOL_LOCK_PATH=/tmp/osworld_volcengine_pool.lock
 VOLCENGINE_REINSTALL_WAIT_SECONDS=600
 VOLCENGINE_REINSTALL_POLL_SECONDS=10
 VOLCENGINE_READY_WAIT_SECONDS=300
+
+# 同一 runner 内同时重装系统盘的 ECS 数。设为 0 表示不限制。
+VOLCENGINE_REINSTALL_CONCURRENCY=5
+VOLCENGINE_REINSTALL_LOCK_DIR=/tmp/osworld_volcengine_reinstall_locks
+VOLCENGINE_REINSTALL_SEMAPHORE_WAIT_SECONDS=3600
 ```
 
 如果要继续走原来的删旧建新路径，不设置 `VOLCENGINE_POOL_ENABLED`，或显式设置：
@@ -390,7 +449,7 @@ VOLCENGINE_POOL_ENABLED=0
 
 | 风险 | 处理 |
 | --- | --- |
-| `ReplaceSystemVolume` 有接口频控 | 限制同时重装数量，例如 `VOLCENGINE_REINSTALL_CONCURRENCY=5`，失败后退避重试 |
+| `ReplaceSystemVolume` 有接口频控 | 已提供同 runner 内的 `VOLCENGINE_REINSTALL_CONCURRENCY` 文件锁闸门；失败后仍需要退避重试 |
 | 重装后 OSWorld server 没起来 | reset 完成后必须等待 `/screenshot`，不只等实例 `RUNNING` |
 | 实例池被手工改 tag | 每次变更前二次校验，校验失败直接拒绝 |
 | 多 runner 抢同一台 ECS | 第一版明确不支持；需要外部强一致锁后再开放 |

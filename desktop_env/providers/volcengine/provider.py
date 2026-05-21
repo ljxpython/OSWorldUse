@@ -1,3 +1,4 @@
+import contextlib
 import os
 import time
 import logging
@@ -39,10 +40,98 @@ def _env_int(name: str, default: int) -> int:
     return parsed
 
 
+def _env_non_negative_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value in (None, ""):
+        return default
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise EnvironmentError(f"{name} must be an integer.") from exc
+    if parsed < 0:
+        raise EnvironmentError(f"{name} must be greater than or equal to 0.")
+    return parsed
+
+
 VOLCENGINE_REINSTALL_WAIT_SECONDS = _env_int("VOLCENGINE_REINSTALL_WAIT_SECONDS", 600)
 VOLCENGINE_REINSTALL_POLL_SECONDS = _env_int("VOLCENGINE_REINSTALL_POLL_SECONDS", 10)
 VOLCENGINE_READY_WAIT_SECONDS = _env_int("VOLCENGINE_READY_WAIT_SECONDS", 300)
 VOLCENGINE_READY_POLL_SECONDS = _env_int("VOLCENGINE_READY_POLL_SECONDS", 5)
+VOLCENGINE_REINSTALL_CONCURRENCY = _env_non_negative_int("VOLCENGINE_REINSTALL_CONCURRENCY", 5)
+VOLCENGINE_REINSTALL_SEMAPHORE_WAIT_SECONDS = _env_int(
+    "VOLCENGINE_REINSTALL_SEMAPHORE_WAIT_SECONDS",
+    3600,
+)
+VOLCENGINE_REINSTALL_LOCK_DIR = os.getenv(
+    "VOLCENGINE_REINSTALL_LOCK_DIR",
+    "/tmp/osworld_volcengine_reinstall_locks",
+) or "/tmp/osworld_volcengine_reinstall_locks"
+
+
+@contextlib.contextmanager
+def _reinstall_semaphore(instance_id: str):
+    if VOLCENGINE_REINSTALL_CONCURRENCY == 0:
+        yield
+        return
+
+    try:
+        import fcntl
+    except ImportError:
+        logger.warning("fcntl is unavailable; Volcengine reinstall concurrency limit is disabled.")
+        yield
+        return
+
+    os.makedirs(VOLCENGINE_REINSTALL_LOCK_DIR, exist_ok=True)
+    deadline = time.time() + VOLCENGINE_REINSTALL_SEMAPHORE_WAIT_SECONDS
+    last_error = None
+
+    while time.time() < deadline:
+        for slot in range(VOLCENGINE_REINSTALL_CONCURRENCY):
+            lock_path = os.path.join(VOLCENGINE_REINSTALL_LOCK_DIR, f"slot-{slot}.lock")
+            lock_file = open(lock_path, "a+", encoding="utf-8")
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                lock_file.close()
+                continue
+            except OSError as exc:
+                last_error = exc
+                lock_file.close()
+                continue
+
+            lock_file.seek(0)
+            lock_file.truncate()
+            lock_file.write(
+                f"pid={os.getpid()} instance_id={instance_id} acquired_at={int(time.time())}\n"
+            )
+            lock_file.flush()
+            logger.info(
+                "Acquired Volcengine reinstall slot %d/%d for %s.",
+                slot + 1,
+                VOLCENGINE_REINSTALL_CONCURRENCY,
+                instance_id,
+            )
+            try:
+                yield
+            finally:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                finally:
+                    lock_file.close()
+                logger.info("Released Volcengine reinstall slot %d for %s.", slot + 1, instance_id)
+            return
+
+        logger.info(
+            "Waiting for a Volcengine reinstall slot for %s (concurrency=%d)...",
+            instance_id,
+            VOLCENGINE_REINSTALL_CONCURRENCY,
+        )
+        time.sleep(VOLCENGINE_REINSTALL_POLL_SECONDS)
+
+    raise TimeoutError(
+        f"No Volcengine reinstall slot became available for {instance_id} within "
+        f"{VOLCENGINE_REINSTALL_SEMAPHORE_WAIT_SECONDS}s (last_error={last_error})."
+    )
 
 
 class VolcengineProvider(Provider):
@@ -128,33 +217,35 @@ class VolcengineProvider(Provider):
 
     def _reinstall_pool_instance(self, instance_id: str) -> str:
         logger.info("Reinstalling Volcengine pool instance %s from image %s...", instance_id, VOLCENGINE_IMAGE_ID)
-        instance = assert_managed_pool_instance(self.client, instance_id)
-        status = getattr(instance, "status", None)
+        assert_managed_pool_instance(self.client, instance_id)
+        with _reinstall_semaphore(instance_id):
+            instance = assert_managed_pool_instance(self.client, instance_id)
+            status = getattr(instance, "status", None)
 
-        if status != "STOPPED":
-            logger.info("Stopping instance %s before ReplaceSystemVolume (current=%s).", instance_id, status)
-            self.client.stop_instances(ecs_models.StopInstancesRequest(instance_ids=[instance_id]))
+            if status != "STOPPED":
+                logger.info("Stopping instance %s before ReplaceSystemVolume (current=%s).", instance_id, status)
+                self.client.stop_instances(ecs_models.StopInstancesRequest(instance_ids=[instance_id]))
+                self._wait_for_status(instance_id, "STOPPED", VOLCENGINE_REINSTALL_WAIT_SECONDS)
+
+            assert_managed_pool_instance(self.client, instance_id)
+            client_token = f"osworld-reinstall-{instance_id}-{int(time.time())}"
+            self.client.replace_system_volume(ecs_models.ReplaceSystemVolumeRequest(
+                instance_id=instance_id,
+                image_id=VOLCENGINE_IMAGE_ID,
+                password=VOLCENGINE_DEFAULT_PASSWORD,
+                size=str(VOLCENGINE_SYSTEM_VOLUME_SIZE),
+                client_token=client_token,
+            ))
+            logger.info("ReplaceSystemVolume submitted for %s.", instance_id)
+
+            # ReplaceSystemVolume has no useful response fields in the current SDK.
+            # Poll until the instance can be started and the OSWorld server is back.
             self._wait_for_status(instance_id, "STOPPED", VOLCENGINE_REINSTALL_WAIT_SECONDS)
+            assert_managed_pool_instance(self.client, instance_id)
 
-        assert_managed_pool_instance(self.client, instance_id)
-        client_token = f"osworld-reinstall-{instance_id}-{int(time.time())}"
-        self.client.replace_system_volume(ecs_models.ReplaceSystemVolumeRequest(
-            instance_id=instance_id,
-            image_id=VOLCENGINE_IMAGE_ID,
-            password=VOLCENGINE_DEFAULT_PASSWORD,
-            size=str(VOLCENGINE_SYSTEM_VOLUME_SIZE),
-            client_token=client_token,
-        ))
-        logger.info("ReplaceSystemVolume submitted for %s.", instance_id)
-
-        # ReplaceSystemVolume has no useful response fields in the current SDK.
-        # Poll until the instance can be started and the OSWorld server is back.
-        self._wait_for_status(instance_id, "STOPPED", VOLCENGINE_REINSTALL_WAIT_SECONDS)
-        assert_managed_pool_instance(self.client, instance_id)
-
-        self._start_instances_with_retry(instance_id)
-        self._wait_for_status(instance_id, "RUNNING", VOLCENGINE_REINSTALL_WAIT_SECONDS)
-        self._wait_for_osworld_ready(instance_id)
+            self._start_instances_with_retry(instance_id)
+            self._wait_for_status(instance_id, "RUNNING", VOLCENGINE_REINSTALL_WAIT_SECONDS)
+            self._wait_for_osworld_ready(instance_id)
         logger.info("Volcengine pool instance %s reinstalled and ready.", instance_id)
         return instance_id
 
