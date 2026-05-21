@@ -234,7 +234,25 @@ env VOLCENGINE_POOL_ENABLED=1 \
 
 `volcengine_pool.py` 不提供 destroy 命令，不会删除 ECS。
 
-### 3.4 本地调试目标配置
+### 3.4 Chrome CDP 自愈配置
+
+Chrome 类 case 的 setup 会通过 CDP 连接 VM 内浏览器。重装系统盘后或高并发启动时，Chrome、`socat`、CDP 端口可能短时间未 ready；默认会重试，并在连续失败后自动重启 VM 内的 Chrome/CDP bridge：
+
+```bash
+OSWORLD_CHROME_CDP_CONNECT_ATTEMPTS=15
+OSWORLD_CHROME_CDP_RETRY_SECONDS=5
+OSWORLD_CHROME_CDP_READY_TIMEOUT_SECONDS=3
+OSWORLD_CHROME_CDP_RESTART_AFTER_ATTEMPTS=5
+OSWORLD_AUTO_RESTART_CHROME_CDP=1
+```
+
+说明：
+
+- `OSWORLD_CHROME_CDP_CONNECT_ATTEMPTS` 控制 setup 阶段连接 `http://<vm-ip>:9222/json/version` 的最大重试次数。
+- `OSWORLD_CHROME_CDP_RESTART_AFTER_ATTEMPTS` 到达阈值后，会在 VM 内输出 Chrome/socat/端口诊断，并重启 `google-chrome --remote-debugging-port=1337` 与 `socat 9222 -> 127.0.0.1:1337`。
+- `OSWORLD_AUTO_RESTART_CHROME_CDP=0` 可关闭自愈，只保留重试和最终诊断。
+
+### 3.5 本地调试目标配置
 
 如果只是本地调试或复用已有机器，不需要走 `volcengine` 创建云机。可以在 `.env` 中配置已有机器或本地 VMware Fusion VM：
 
@@ -264,7 +282,7 @@ OSWORLD_VMWARE_UBUNTU_VMX=<path-to-ubuntu-vmx>
 
 也就是说，本地调试时通常只需要传 `--provider_name` 和 `--os_type`，不需要每次重复写 `--path_to_vm`。
 
-### 3.5 检查配置是否读取成功
+### 3.6 检查配置是否读取成功
 
 不要打印密码明文。只检查变量是否存在：
 
@@ -302,6 +320,11 @@ names = [
     "VOLCENGINE_REINSTALL_RETRY_MAX_SECONDS",
     "VOLCENGINE_REINSTALL_LOCK_DIR",
     "VOLCENGINE_REINSTALL_SEMAPHORE_WAIT_SECONDS",
+    "OSWORLD_CHROME_CDP_CONNECT_ATTEMPTS",
+    "OSWORLD_CHROME_CDP_RETRY_SECONDS",
+    "OSWORLD_CHROME_CDP_READY_TIMEOUT_SECONDS",
+    "OSWORLD_CHROME_CDP_RESTART_AFTER_ATTEMPTS",
+    "OSWORLD_AUTO_RESTART_CHROME_CDP",
     "OSWORLD_CUA_BIN",
     "OSWORLD_CUA_CONFIG_PATH",
     "OSWORLD_REMOTE_UBUNTU_VM",
@@ -1454,7 +1477,24 @@ Failed to get file from VM: C:\Users\User\Desktop\pre.pptx
 - 确认镜像内 ffmpeg 可用。
 - 确认 Windows 已进入交互桌面 session。
 
-### 14.5 `tool_translation_failed`
+### 14.5 Chrome CDP `ECONNRESET`
+
+示例：
+
+```text
+BrowserType.connect_over_cdp: read ECONNRESET
+retrieving websocket url from http://<ecs-ip>:9222
+```
+
+这个错误发生在网页打开前，通常是 VM 内 `socat 9222 -> 127.0.0.1:1337 -> Chrome CDP` 链路没 ready 或半断开，不是目标网站问题。
+
+处理：
+
+- 先看 setup 日志里的 `Chrome CDP diagnostics`，确认 `google-chrome/chromium/socat` 进程和 `9222/1337` 监听状态。
+- 默认 `OSWORLD_AUTO_RESTART_CHROME_CDP=1` 会自动重启 Chrome 和 `socat` 后继续重试。
+- 如果同一台池化 ECS 连续多个 Chrome case 都失败，优先释放 lease 后让下一轮 `ReplaceSystemVolume` 重置系统盘。
+
+### 14.6 `tool_translation_failed`
 
 含义：
 
@@ -1469,7 +1509,7 @@ Failed to get file from VM: C:\Users\User\Desktop\pre.pptx
 
 当前 bridge 已兼容缺 `toY` 的水平拖拽和缺 `toX` 的垂直拖拽。如果仍失败，按具体 tool call 补兼容或修 CUA 输出。
 
-### 14.6 `score=0` 但 `bridge_error_count=0`
+### 14.7 `score=0` 但 `bridge_error_count=0`
 
 这说明 bridge 没炸，问题通常在：
 
@@ -1485,7 +1525,7 @@ Failed to get file from VM: C:\Users\User\Desktop\pre.pptx
 - 拉回的目标文件
 - evaluator debug 日志
 
-### 14.7 代理误伤导致的假失败
+### 14.8 代理误伤导致的假失败
 
 典型症状：
 

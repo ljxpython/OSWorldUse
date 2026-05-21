@@ -334,7 +334,7 @@ env VOLCENGINE_POOL_ENABLED=1 \
    - 第一阶段不修改通用 reset 语义，避免影响 VMware/本地 VM。
    - 如果后续只想增强火山云隔离，应通过 provider 能力或 `provider_name == "volcengine"` 显式加门控。
 
-## 后续：Chrome CDP ECONNRESET 处理
+## 已落地：Chrome CDP ECONNRESET 处理
 
 `ECONNRESET` 的定位不要从外部网站开始查。这个错误发生在打开网页之前，失败点是 CDP websocket URL 获取：
 
@@ -348,11 +348,20 @@ http://<ecs-ip>:9222/json/version
 2. 实例隔离：只在火山云 provider 下增强 setup 失败后的 reset 策略，不改变 VMware/本地 VM 默认行为。
 3. 云资源恢复：池化模式下 reset 走 `ReplaceSystemVolume`；非池化火山云模式下 reset 走删旧建新。
 
-后续修复可引入这些开关：
+当前已实现第 1 层；第 2、3 层由火山云池化 reset 流程兜底。可用这些开关调节 setup 自愈：
 
 ```bash
 # Chrome CDP 连接重试次数，默认 15。
 OSWORLD_CHROME_CDP_CONNECT_ATTEMPTS=15
+
+# 每次重试等待秒数，默认 5。
+OSWORLD_CHROME_CDP_RETRY_SECONDS=5
+
+# 请求 /json/version 的单次 read timeout，默认 3。
+OSWORLD_CHROME_CDP_READY_TIMEOUT_SECONDS=3
+
+# 第几次失败后触发一次 Chrome/socat 自动重启，默认 5。
+OSWORLD_CHROME_CDP_RESTART_AFTER_ATTEMPTS=5
 
 # 是否允许 setup 在 CDP 连续失败时自动重启 Chrome/socat，默认开启。
 OSWORLD_AUTO_RESTART_CHROME_CDP=1

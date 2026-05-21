@@ -102,6 +102,7 @@ VOLCENGINE_POOL_ACQUIRE_WAIT_SECONDS = _env_int("VOLCENGINE_POOL_ACQUIRE_WAIT_SE
 VOLCENGINE_POOL_ACQUIRE_POLL_SECONDS = _env_int("VOLCENGINE_POOL_ACQUIRE_POLL_SECONDS", 5)
 
 POOL_USABLE_STATUSES = {"RUNNING", "STOPPED"}
+POOL_COUNTED_STATUSES = POOL_USABLE_STATUSES | {"STARTING", "STOPPING", "REBUILDING"}
 
 
 def _is_not_found_error(exc: Exception) -> bool:
@@ -264,7 +265,7 @@ def _pool_tag_filters() -> list:
     ]
 
 
-def _list_pool_instances(api_instance: ECSApi) -> list:
+def _list_pool_instances(api_instance: ECSApi, statuses: set[str] | None = POOL_USABLE_STATUSES) -> list:
     instances = []
     next_token = None
     while True:
@@ -284,7 +285,7 @@ def _list_pool_instances(api_instance: ECSApi) -> list:
                     "; ".join(errors),
                 )
                 continue
-            if getattr(instance, "status", None) not in POOL_USABLE_STATUSES:
+            if statuses is not None and getattr(instance, "status", None) not in statuses:
                 logger.info(
                     "Skipping Volcengine pool instance %s in status %s.",
                     getattr(instance, "instance_id", "<unknown>"),
@@ -695,7 +696,7 @@ class VolcengineVMManager(VMManager):
         return 1
 
     def _ensure_pool_size_unlocked(self, target_size: int, screen_size=(1920, 1080)) -> list[str]:
-        instances = _list_pool_instances(self.client)
+        instances = _list_pool_instances(self.client, statuses=POOL_COUNTED_STATUSES)
         instance_ids = [getattr(instance, "instance_id", None) for instance in instances]
         instance_ids = [instance_id for instance_id in instance_ids if instance_id]
         missing_count = max(0, target_size - len(instance_ids))

@@ -68,6 +68,25 @@ def _require_pydrive():
         ) from e
     return GoogleAuth, GoogleDrive
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int, minimum: Optional[int] = None) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        logger.warning("Invalid integer env %s=%r; using %s", name, os.getenv(name), default)
+        value = default
+    if minimum is not None:
+        value = max(minimum, value)
+    return value
+
+
 MAX_RETRIES = 20
 
 class SetupController:
@@ -506,6 +525,126 @@ class SetupController:
     def _sleep_setup(self, seconds: float):
         time.sleep(seconds)
 
+    def _chrome_cdp_url(self) -> str:
+        return f"http://{self.vm_ip}:{self.chromium_port}"
+
+    def _get_chrome_cdp_version(self) -> Dict[str, Any]:
+        timeout_seconds = _env_int("OSWORLD_CHROME_CDP_READY_TIMEOUT_SECONDS", 3, minimum=1)
+        response = requests.get(
+            f"{self._chrome_cdp_url()}/json/version",
+            timeout=(1, timeout_seconds),
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def _execute_shell_for_result(self, command: str, timeout: int = 150) -> Dict[str, Any]:
+        payload = json.dumps({"command": command, "shell": True})
+        headers = {"Content-Type": "application/json"}
+        try:
+            response = requests.post(
+                self.http_server + "/setup/execute",
+                headers=headers,
+                data=payload,
+                timeout=timeout,
+            )
+            if response.status_code == 200:
+                return response.json()
+            return {
+                "returncode": response.status_code,
+                "output": "",
+                "error": response.text,
+            }
+        except requests.exceptions.RequestException as e:
+            return {
+                "returncode": -1,
+                "output": "",
+                "error": str(e),
+            }
+
+    def _diagnose_chrome_cdp(self, reason: str):
+        command = r"""
+printf '%s\n' '--- cdp processes ---'
+pgrep -af 'google-chrome|chrome|chromium|socat' || true
+printf '%s\n' '--- cdp listen ports ---'
+(ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null || true) | grep -E ':(9222|1337)[[:space:]]' || true
+printf '%s\n' '--- 127.0.0.1:1337/json/version ---'
+curl -sS --max-time 2 http://127.0.0.1:1337/json/version || true
+printf '\n%s\n' '--- 127.0.0.1:9222/json/version ---'
+curl -sS --max-time 2 http://127.0.0.1:9222/json/version || true
+"""
+        result = self._execute_shell_for_result(command, timeout=30)
+        logger.warning(
+            "Chrome CDP diagnostics (%s): returncode=%s\nstdout:\n%s\nstderr:\n%s",
+            reason,
+            result.get("returncode"),
+            result.get("output", ""),
+            result.get("error", ""),
+        )
+
+    def _restart_chrome_cdp_bridge(self):
+        logger.warning("Restarting Chrome CDP bridge inside guest")
+        kill_command = (
+            "pkill -f 'socat.*[tT][cC][pP]-listen:9222' || true; "
+            "pkill -f '[c]hrome.*remote-debugging-port=1337' || true; "
+            "pkill -f '[c]hromium.*remote-debugging-port=1337' || true"
+        )
+        result = self._execute_shell_for_result(kill_command, timeout=20)
+        if result.get("error"):
+            logger.debug("Chrome CDP kill stderr: %s", result.get("error"))
+        time.sleep(2)
+
+        self._launch_setup(["google-chrome", "--remote-debugging-port=1337", "--no-first-run"])
+        time.sleep(2)
+        self._launch_setup(["socat", "tcp-listen:9222,reuseaddr,fork", "tcp:127.0.0.1:1337"])
+
+    def _connect_chrome_over_cdp(self, chromium: Any, purpose: str):
+        remote_debugging_url = self._chrome_cdp_url()
+        attempts = _env_int("OSWORLD_CHROME_CDP_CONNECT_ATTEMPTS", 15, minimum=1)
+        retry_seconds = _env_int("OSWORLD_CHROME_CDP_RETRY_SECONDS", 5, minimum=1)
+        restart_after = _env_int(
+            "OSWORLD_CHROME_CDP_RESTART_AFTER_ATTEMPTS",
+            max(3, attempts // 3),
+            minimum=1,
+        )
+        auto_restart = _env_bool("OSWORLD_AUTO_RESTART_CHROME_CDP", True)
+        restarted = False
+        last_error: Optional[Exception] = None
+
+        logger.info("Connect to Chrome @: %s for %s", remote_debugging_url, purpose)
+        for attempt in range(1, attempts + 1):
+            try:
+                version = self._get_chrome_cdp_version()
+                logger.debug("Chrome CDP version payload: %s", version)
+                return chromium.connect_over_cdp(remote_debugging_url)
+            except Exception as e:
+                last_error = e
+                if attempt < attempts:
+                    logger.error(
+                        "Attempt %s/%s: Chrome CDP is not ready for %s, retrying in %ss. Error: %s",
+                        attempt,
+                        attempts,
+                        purpose,
+                        retry_seconds,
+                        e,
+                    )
+                    if auto_restart and not restarted and attempt >= restart_after:
+                        self._diagnose_chrome_cdp(f"{purpose} before auto-restart")
+                        self._restart_chrome_cdp_bridge()
+                        restarted = True
+                    time.sleep(retry_seconds)
+                else:
+                    self._diagnose_chrome_cdp(f"{purpose} final failure")
+
+        raise RuntimeError(
+            f"Failed to connect Chrome CDP at {remote_debugging_url} after {attempts} attempts. "
+            f"Last error: {last_error}"
+        )
+
+    def _get_chrome_context(self, browser: Any):
+        if getattr(browser, "contexts", None) and len(browser.contexts) > 0:
+            return browser.contexts[0]
+        return browser.new_context()
+
     def _act_setup(self, action_seq: List[Union[Dict[str, Any], str]]):
         # TODO
         raise NotImplementedError()
@@ -629,85 +768,39 @@ class SetupController:
 
     # Chrome setup
     def _chrome_open_tabs_setup(self, urls_to_open: List[str]):
-        host = self.vm_ip
-        port = self.chromium_port  # fixme: this port is hard-coded, need to be changed from config file
-
-        remote_debugging_url = f"http://{host}:{port}"
-        logger.info("Connect to Chrome @: %s", remote_debugging_url)
         logger.debug("PLAYWRIGHT ENV: %s", repr(os.environ))
-        for attempt in range(15):
-            if attempt > 0:
-                time.sleep(5)
 
-            browser = None
-            sync_playwright, _TimeoutError = _require_playwright()
-            with sync_playwright() as p:
+        sync_playwright, _TimeoutError = _require_playwright()
+        with sync_playwright() as p:
+            browser = self._connect_chrome_over_cdp(p.chromium, "chrome_open_tabs")
+            context = self._get_chrome_context(browser)
+
+            logger.info("Opening %s...", urls_to_open)
+            for i, url in enumerate(urls_to_open):
+                page = context.new_page()  # Create a new page (tab) within the existing context
                 try:
-                    browser = p.chromium.connect_over_cdp(remote_debugging_url)
-                    # break
-                except Exception as e:
-                    if attempt < 14:
-                        logger.error(f"Attempt {attempt + 1}: Failed to connect, retrying. Error: {e}")
-                        # time.sleep(10)
-                        continue
-                    else:
-                        logger.error(f"Failed to connect after multiple attempts: {e}")
-                        raise e
+                    page.goto(url, timeout=60000)
+                except:
+                    logger.warning("Opening %s exceeds time limit", url)  # only for human test
+                logger.info(f"Opened tab {i + 1}: {url}")
 
-                if not browser:
-                    return
+                if i == 0 and len(context.pages) > 1:
+                    # clear the default tab
+                    default_page = context.pages[0]
+                    default_page.close()
 
-                logger.info("Opening %s...", urls_to_open)
-                for i, url in enumerate(urls_to_open):
-                    # Use the first context (which should be the only one if using default profile)
-                    if i == 0:
-                        context = browser.contexts[0]
-
-                    page = context.new_page()  # Create a new page (tab) within the existing context
-                    try:
-                        page.goto(url, timeout=60000)
-                    except:
-                        logger.warning("Opening %s exceeds time limit", url)  # only for human test
-                    logger.info(f"Opened tab {i + 1}: {url}")
-
-                    if i == 0:
-                        # clear the default tab
-                        default_page = context.pages[0]
-                        default_page.close()
-
-                # Do not close the context or browser; they will remain open after script ends
-                return browser, context
+            # Do not close the context or browser; they will remain open after script ends
+            return browser, context
 
     def _chrome_close_tabs_setup(self, urls_to_close: List[str]):
         time.sleep(5)  # Wait for Chrome to finish launching
 
-        host = self.vm_ip
-        port = self.chromium_port  # fixme: this port is hard-coded, need to be changed from config file
-
-        remote_debugging_url = f"http://{host}:{port}"
         sync_playwright, _TimeoutError = _require_playwright()
         with sync_playwright() as p:
-            browser = None
-            for attempt in range(15):
-                try:
-                    browser = p.chromium.connect_over_cdp(remote_debugging_url)
-                    break
-                except Exception as e:
-                    if attempt < 14:
-                        logger.error(f"Attempt {attempt + 1}: Failed to connect, retrying. Error: {e}")
-                        time.sleep(5)
-                    else:
-                        logger.error(f"Failed to connect after multiple attempts: {e}")
-                        raise e
-
-            if not browser:
-                return
+            browser = self._connect_chrome_over_cdp(p.chromium, "chrome_close_tabs")
+            context = self._get_chrome_context(browser)
 
             for i, url in enumerate(urls_to_close):
-                # Use the first context (which should be the only one if using default profile)
-                if i == 0:
-                    context = browser.contexts[0]
-
                 for page in context.pages:
 
                     # if two urls are the same, close the tab
@@ -814,28 +907,10 @@ class SetupController:
                     googledrive: https://drive.google.com/drive/my-drive
 
         """
-        host = self.vm_ip
-        port = self.chromium_port
-
-        remote_debugging_url = f"http://{host}:{port}"
         sync_playwright, TimeoutError = _require_playwright()
         with sync_playwright() as p:
-            browser = None
-            for attempt in range(15):
-                try:
-                    browser = p.chromium.connect_over_cdp(remote_debugging_url)
-                    break
-                except Exception as e:
-                    if attempt < 14:
-                        logger.error(f"Attempt {attempt + 1}: Failed to connect, retrying. Error: {e}")
-                        time.sleep(5)
-                    else:
-                        logger.error(f"Failed to connect after multiple attempts: {e}")
-                        raise e
-            if not browser:
-                return
-
-            context = browser.contexts[0]
+            browser = self._connect_chrome_over_cdp(p.chromium, "login")
+            context = self._get_chrome_context(browser)
             platform = config['platform']
 
             if platform == 'googledrive':

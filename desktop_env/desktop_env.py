@@ -155,10 +155,15 @@ class DesktopEnv(gym.Env):
 
         self.os_type = os_type
 
-        # Track whether environment has been used (step/setup) to optimize snapshot revert
-        # docker, aws, gcp, azure are always unused as the emulator starts from a clean state
+        # Track whether environment has been used (step/setup) to optimize snapshot revert.
+        # docker, aws, gcp, azure are always unused as the emulator starts from a clean state.
+        # Volcengine pool instances are reused across processes, so the first task must reset too.
         # vmware, virtualbox are always used as the emulator starts from a dirty state
-        if self.provider_name in {"docker", "aws", "gcp", "azure", "aliyun", "volcengine", "remote"}:
+        if self.provider_name == "volcengine" and not path_to_vm:
+            from desktop_env.providers.volcengine.manager import is_pool_enabled
+
+            self.is_environment_used = is_pool_enabled()
+        elif self.provider_name in {"docker", "aws", "gcp", "azure", "aliyun", "volcengine", "remote"}:
             self.is_environment_used = False
         elif self.provider_name in {"vmware", "virtualbox"}:
             self.is_environment_used = True

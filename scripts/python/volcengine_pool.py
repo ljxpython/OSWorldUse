@@ -94,7 +94,7 @@ def _pool_snapshot() -> dict:
     leased_ids = set(registry)
     instances = [
         _instance_to_dict(instance, leased_ids)
-        for instance in _list_pool_instances(manager.client)
+        for instance in _list_pool_instances(manager.client, statuses=None)
     ]
     instance_ids = {item["instance_id"] for item in instances}
     free_ids = [item["instance_id"] for item in instances if not item["leased"]]
