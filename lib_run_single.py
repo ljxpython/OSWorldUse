@@ -144,6 +144,188 @@ def _append_traj_event(example_result_dir: str, payload: dict) -> None:
         file.write("\n")
 
 
+def _read_cua_terminal_state(example_result_dir: str) -> dict:
+    runs_dir = os.path.join(example_result_dir, "cua_runs")
+    terminal_state = {
+        "found": False,
+        "source_path": None,
+        "success": None,
+        "reason": None,
+        "last_action": None,
+        "last_action_args": None,
+        "last_result": None,
+        "last_error": None,
+        "skipped_reason": None,
+    }
+    if not os.path.isdir(runs_dir):
+        terminal_state["skipped_reason"] = "cua_runs_dir_missing"
+        return terminal_state
+
+    candidates: list[tuple[float, str]] = []
+    for root, _, files in os.walk(runs_dir):
+        if "steps.json" in files or "steps.jsonl" in files:
+            paths = [
+                os.path.join(root, name)
+                for name in ("steps.json", "steps.jsonl")
+                if name in files
+            ]
+            newest_mtime = max(os.path.getmtime(path) for path in paths)
+            candidates.append((newest_mtime, root))
+
+    if not candidates:
+        terminal_state["skipped_reason"] = "steps_artifact_missing"
+        return terminal_state
+
+    for _, run_dir in sorted(candidates, reverse=True):
+        steps_json_path = os.path.join(run_dir, "steps.json")
+        steps_jsonl_path = os.path.join(run_dir, "steps.jsonl")
+        if os.path.exists(steps_json_path):
+            try:
+                with open(steps_json_path, "r", encoding="utf-8") as file:
+                    payload = json.load(file)
+                steps = payload.get("steps") if isinstance(payload, dict) else None
+                if not isinstance(steps, list) or not steps:
+                    terminal_state["skipped_reason"] = "steps_json_empty"
+                    continue
+                last_step = steps[-1] if isinstance(steps[-1], dict) else {}
+                terminal_state.update(
+                    {
+                        "found": True,
+                        "source_path": steps_json_path,
+                        "success": payload.get("success"),
+                        "reason": payload.get("reason"),
+                        "last_action": last_step.get("actionName"),
+                        "last_action_args": last_step.get("actionArgs"),
+                        "last_result": last_step.get("result"),
+                        "last_error": last_step.get("error"),
+                        "skipped_reason": None,
+                    }
+                )
+                return terminal_state
+            except Exception as exc:
+                terminal_state["skipped_reason"] = f"steps_json_read_failed: {exc}"
+                continue
+
+        if os.path.exists(steps_jsonl_path):
+            try:
+                last_step = None
+                with open(steps_jsonl_path, "r", encoding="utf-8") as file:
+                    for line in file:
+                        raw = line.strip()
+                        if raw:
+                            parsed = json.loads(raw)
+                            if isinstance(parsed, dict):
+                                last_step = parsed
+                if not last_step:
+                    terminal_state["skipped_reason"] = "steps_jsonl_empty"
+                    continue
+                terminal_state.update(
+                    {
+                        "found": True,
+                        "source_path": steps_jsonl_path,
+                        "last_action": last_step.get("actionName"),
+                        "last_action_args": last_step.get("actionArgs"),
+                        "last_result": last_step.get("result"),
+                        "last_error": last_step.get("error"),
+                        "skipped_reason": None,
+                    }
+                )
+                return terminal_state
+            except Exception as exc:
+                terminal_state["skipped_reason"] = f"steps_jsonl_read_failed: {exc}"
+                continue
+
+    if terminal_state["skipped_reason"] is None:
+        terminal_state["skipped_reason"] = "steps_artifact_unreadable"
+    return terminal_state
+
+
+def _is_infeasible_example(example: dict | None) -> bool:
+    evaluator = example.get("evaluator") if isinstance(example, dict) else None
+    if isinstance(evaluator, dict):
+        return evaluator.get("func") == "infeasible"
+    return False
+
+
+def _should_inject_cua_terminal_fail(terminal_state: dict, cua_result, *, is_infeasible: bool) -> tuple[bool, str | None]:
+    failure_type = getattr(cua_result, "failure_type", None)
+    if failure_type:
+        return is_infeasible, f"cua_result_failure_type:{failure_type}"
+
+    if not terminal_state.get("found"):
+        return is_infeasible, str(terminal_state.get("skipped_reason") or "terminal_state_missing")
+
+    reason = str(terminal_state.get("reason") or "")
+    reason_lower = reason.strip().lower()
+    if reason_lower.startswith(("max_steps_exceeded", "max_duration_exceeded", "max_step_duration_exceeded")):
+        return is_infeasible, f"runtime_limit:{reason.split(':', 1)[0]}"
+
+    last_action = str(terminal_state.get("last_action") or "")
+    last_args = terminal_state.get("last_action_args")
+    last_args = last_args if isinstance(last_args, dict) else {}
+
+    if last_action == "done" and last_args.get("success") is False:
+        return True, "done_success_false"
+
+    if last_action == "wait_for_user":
+        success = terminal_state.get("success")
+        if success == "interrupted" or reason_lower.startswith("needs_user:"):
+            return True, "wait_for_user_interrupted"
+        return is_infeasible, "wait_for_user_not_terminal_interrupted"
+
+    if last_action == "done":
+        return is_infeasible, "done_terminal"
+
+    return is_infeasible, "terminal_action_not_mapped"
+
+
+def _apply_cua_terminal_action_mapping(env, example: dict | None, example_result_dir: str, cua_result) -> dict:
+    is_infeasible = _is_infeasible_example(example)
+    terminal_state = _read_cua_terminal_state(example_result_dir)
+    should_inject, decision_reason = _should_inject_cua_terminal_fail(
+        terminal_state,
+        cua_result,
+        is_infeasible=is_infeasible,
+    )
+    mapping = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "is_infeasible_task": is_infeasible,
+        "terminal_state": terminal_state,
+        "osworld_fail_injected": False,
+        "injected_fail_reason": None,
+        "skipped_reason": decision_reason,
+    }
+    if should_inject:
+        action_history = getattr(env, "action_history", None)
+        if not isinstance(action_history, list):
+            action_history = []
+            setattr(env, "action_history", action_history)
+        action_history.append("FAIL")
+        mapping["osworld_fail_injected"] = True
+        mapping["injected_fail_reason"] = decision_reason
+        mapping["skipped_reason"] = None
+
+    mapping_path = os.path.join(example_result_dir, "terminal_mapping.json")
+    with open(mapping_path, "w", encoding="utf-8") as file:
+        json.dump(mapping, file, indent=2, ensure_ascii=False)
+
+    cua_meta_path = os.path.join(example_result_dir, "cua_meta.json")
+    try:
+        merge_json_file(
+            cua_meta_path,
+            {
+                "osworld_fail_injected": mapping["osworld_fail_injected"],
+                "injected_fail_reason": mapping["injected_fail_reason"],
+                "is_infeasible_task": is_infeasible,
+                "cua_terminal_state": terminal_state,
+            },
+        )
+    except Exception:
+        logger.exception("Failed to merge CUA terminal mapping into %s", cua_meta_path)
+
+    return mapping
+
+
 def run_single_example_cua_blackbox(env, example, max_steps, instruction, args, example_result_dir, scores):
     from osworld_cua_bridge.launcher import run_cua_blackbox
 
@@ -214,6 +396,18 @@ def run_single_example_cua_blackbox(env, example, max_steps, instruction, args, 
             },
         )
         _sync_failure_metadata(example_result_dir)
+
+        terminal_mapping = _apply_cua_terminal_action_mapping(env, example, example_result_dir, cua_result)
+        _append_traj_event(
+            example_result_dir,
+            {
+                "mode": "cua_blackbox",
+                "event": "terminal_action_mapping",
+                "osworld_fail_injected": terminal_mapping["osworld_fail_injected"],
+                "injected_fail_reason": terminal_mapping["injected_fail_reason"],
+                "skipped_reason": terminal_mapping["skipped_reason"],
+            },
+        )
 
         settle_seconds = getattr(args, "settle_sleep", 20)
         if settle_seconds > 0:

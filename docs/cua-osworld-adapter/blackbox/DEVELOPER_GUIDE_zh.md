@@ -239,6 +239,7 @@ sequenceDiagram
 - 写 `run_meta.json`。
 - 启动录屏。
 - 调 `run_cua_blackbox()`。
+- 根据 CUA `steps.json` / 运行结果回填 OSWorld terminal action：普通任务只在 `done(success=false)` 或 `wait_for_user` 中断时追加 `FAIL`；`infeasible` evaluator 任务会对 CUA terminal 失败/结束状态宽松追加 `FAIL`，仍由 OSWorld 原生 evaluator 决定得分。
 - 等待 UI settle。
 - 调 `env.evaluate()`。
 - 写 `result.txt`。
@@ -336,6 +337,7 @@ args.json
   cua.stdout.log
   cua.stderr.log
   cua_meta.json
+  terminal_mapping.json
   bridge_requests.jsonl
   bridge_screenshots/
   traj.jsonl
@@ -360,8 +362,9 @@ report/
 3. 单任务 `failure_summary.json`
 4. 单任务 `runtime.log`
 5. `cua.stderr.log`
-6. `bridge_requests.jsonl`
-7. `recording.mp4`
+6. `terminal_mapping.json`
+7. `bridge_requests.jsonl`
+8. `recording.mp4`
 
 ---
 

@@ -103,12 +103,26 @@ class FakeEnv:
         self.controller = FakeController()
         self.screen_width = 1920
         self.screen_height = 1080
+        self.action_history: list[Any] = []
 
     def reset(self, task_config: dict[str, Any] | None = None) -> dict[str, Any]:
+        self.action_history.clear()
         return {"screenshot": PNG_BYTES, "instruction": task_config.get("instruction") if task_config else None}
 
     def evaluate(self) -> float:
         return 0.0
+
+
+class FakeNormalEnv(FakeEnv):
+    def evaluate(self) -> float:
+        last_action = self.action_history[-1] if self.action_history else None
+        return 0.0 if last_action == "FAIL" else 1.0
+
+
+class FakeInfeasibleEnv(FakeEnv):
+    def evaluate(self) -> float:
+        last_action = self.action_history[-1] if self.action_history else None
+        return 1.0 if last_action == "FAIL" else 0.0
 
 
 class EvaluateFailedEnv(FakeEnv):
@@ -732,6 +746,7 @@ def check_evaluate_failure_classification(result_dir: str) -> None:
 
     args = SimpleNamespace(
         model="cua-smoke",
+        result_dir=case_dir,
         adapter_version="blackbox-v1",
         bridge_protocol_version=BRIDGE_PROTOCOL_VERSION,
         eval_profile="ubuntu-cua-local-smoke-v1",
@@ -777,6 +792,261 @@ def check_evaluate_failure_classification(result_dir: str) -> None:
     with open(os.path.join(case_dir, "cua_meta.json"), encoding="utf-8") as file:
         cua_meta = json.load(file)
     assert cua_meta["failure_type"] == EVALUATE_FAILED
+
+
+def _write_fake_cua_steps_script(case_dir: str, payload: dict[str, Any] | None) -> str:
+    fake_cua = os.path.join(case_dir, "fake-cua-steps")
+    payload_json = json.dumps(payload, ensure_ascii=False) if payload is not None else None
+    with open(fake_cua, "w", encoding="utf-8") as file:
+        file.write("#!/usr/bin/env python3\n")
+        file.write("import json, os, sys\n")
+        file.write("runs_dir = None\n")
+        file.write("args = sys.argv[1:]\n")
+        file.write("for i, arg in enumerate(args[:-1]):\n")
+        file.write("    if arg == '--runs-dir':\n")
+        file.write("        runs_dir = args[i + 1]\n")
+        file.write("        break\n")
+        file.write("if runs_dir is None:\n")
+        file.write("    raise SystemExit(2)\n")
+        if payload_json is not None:
+            file.write(f"payload = json.loads({json.dumps(payload_json)})\n")
+            file.write("run_dir = os.path.join(runs_dir, 'fake-run')\n")
+            file.write("os.makedirs(run_dir, exist_ok=True)\n")
+            file.write("with open(os.path.join(run_dir, 'steps.json'), 'w', encoding='utf-8') as f:\n")
+            file.write("    json.dump(payload, f, ensure_ascii=False)\n")
+    os.chmod(fake_cua, 0o755)
+    return fake_cua
+
+
+def _make_terminal_mapping_args(case_dir: str, fake_cua: str, config_path: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        model="cua-smoke",
+        result_dir=case_dir,
+        adapter_version="blackbox-v1",
+        bridge_protocol_version=BRIDGE_PROTOCOL_VERSION,
+        eval_profile="ubuntu-cua-local-smoke-v1",
+        test_all_meta_path="local-smoke",
+        action_space="pyautogui",
+        observation_type="screenshot",
+        env_ready_sleep=0,
+        settle_sleep=0,
+        max_steps=3,
+        cua_max_duration_ms=0,
+        cua_max_step_duration_ms=0,
+        cua_timeout_grace_seconds=0.1,
+        cua_config_path=config_path,
+        cua_bin=fake_cua,
+        cua_repo_root=ROOT_DIR,
+        cua_runs_dir=None,
+        cua_node_id="terminal-mapping-node",
+        screen_width=1920,
+        screen_height=1080,
+        cua_extra_args=None,
+    )
+
+
+def _run_terminal_mapping_case(
+    result_dir: str,
+    name: str,
+    env: FakeEnv,
+    payload: dict[str, Any] | None,
+    evaluator: dict[str, Any] | None = None,
+) -> tuple[str, list[float]]:
+    from lib_run_single import run_single_example_cua_blackbox
+
+    case_dir = os.path.join(result_dir, "terminal_mapping", name)
+    os.makedirs(case_dir, exist_ok=True)
+    config_path = os.path.join(case_dir, "local.json")
+    with open(config_path, "w", encoding="utf-8") as file:
+        json.dump({"agent": {}, "coords": {"normalizedInput": True}}, file)
+
+    fake_cua = _write_fake_cua_steps_script(case_dir, payload)
+    args = _make_terminal_mapping_args(case_dir, fake_cua, config_path)
+    scores: list[float] = []
+    run_single_example_cua_blackbox(
+        env,
+        {
+            "id": name,
+            "instruction": f"terminal mapping {name}",
+            **({"evaluator": evaluator} if evaluator else {}),
+        },
+        3,
+        f"terminal mapping {name}",
+        args,
+        case_dir,
+        scores,
+    )
+    return case_dir, scores
+
+
+def check_terminal_action_mapping(result_dir: str) -> None:
+    from lib_run_single import _apply_cua_terminal_action_mapping
+
+    done_false_payload = {
+        "runId": "fake-run",
+        "success": False,
+        "reason": "not possible",
+        "steps": [
+            {"step": 1, "actionName": "done", "actionArgs": {"reason": "not possible", "success": False}},
+        ],
+    }
+    case_dir, scores = _run_terminal_mapping_case(
+        result_dir,
+        "done_false_infeasible",
+        FakeInfeasibleEnv(),
+        done_false_payload,
+    )
+    assert scores == [1.0]
+    with open(os.path.join(case_dir, "terminal_mapping.json"), encoding="utf-8") as file:
+        mapping = json.load(file)
+    assert mapping["osworld_fail_injected"] is True
+    assert mapping["injected_fail_reason"] == "done_success_false"
+    with open(os.path.join(case_dir, "cua_meta.json"), encoding="utf-8") as file:
+        meta = json.load(file)
+    assert meta["osworld_fail_injected"] is True
+    assert meta["cua_terminal_state"]["last_action"] == "done"
+
+    wait_payload = {
+        "runId": "fake-run",
+        "success": "interrupted",
+        "reason": "needs_user: login required",
+        "steps": [
+            {
+                "step": 1,
+                "actionName": "wait_for_user",
+                "actionArgs": {"message": "login", "reason": "requires_login"},
+                "result": "waiting_for_user: login",
+            },
+        ],
+    }
+    case_dir, scores = _run_terminal_mapping_case(
+        result_dir,
+        "wait_for_user_normal",
+        FakeNormalEnv(),
+        wait_payload,
+    )
+    assert scores == [0.0]
+    with open(os.path.join(case_dir, "terminal_mapping.json"), encoding="utf-8") as file:
+        mapping = json.load(file)
+    assert mapping["osworld_fail_injected"] is True
+    assert mapping["injected_fail_reason"] == "wait_for_user_interrupted"
+
+    done_true_payload = {
+        "runId": "fake-run",
+        "success": True,
+        "reason": "done",
+        "steps": [
+            {"step": 1, "actionName": "done", "actionArgs": {"reason": "done", "success": True}},
+        ],
+    }
+    case_dir, scores = _run_terminal_mapping_case(
+        result_dir,
+        "done_true_normal",
+        FakeNormalEnv(),
+        done_true_payload,
+    )
+    assert scores == [1.0]
+    with open(os.path.join(case_dir, "terminal_mapping.json"), encoding="utf-8") as file:
+        mapping = json.load(file)
+    assert mapping["osworld_fail_injected"] is False
+    assert mapping["skipped_reason"] == "done_terminal"
+
+    case_dir, scores = _run_terminal_mapping_case(
+        result_dir,
+        "done_true_infeasible",
+        FakeInfeasibleEnv(),
+        done_true_payload,
+        {"func": "infeasible"},
+    )
+    assert scores == [1.0]
+    with open(os.path.join(case_dir, "terminal_mapping.json"), encoding="utf-8") as file:
+        mapping = json.load(file)
+    assert mapping["is_infeasible_task"] is True
+    assert mapping["osworld_fail_injected"] is True
+    assert mapping["injected_fail_reason"] == "done_terminal"
+
+    case_dir, scores = _run_terminal_mapping_case(
+        result_dir,
+        "missing_steps_normal",
+        FakeNormalEnv(),
+        None,
+    )
+    assert scores == [1.0]
+    with open(os.path.join(case_dir, "terminal_mapping.json"), encoding="utf-8") as file:
+        mapping = json.load(file)
+    assert mapping["osworld_fail_injected"] is False
+    assert mapping["skipped_reason"] == "steps_artifact_missing"
+
+    case_dir, scores = _run_terminal_mapping_case(
+        result_dir,
+        "missing_steps_infeasible",
+        FakeInfeasibleEnv(),
+        None,
+        {"func": "infeasible"},
+    )
+    assert scores == [1.0]
+    with open(os.path.join(case_dir, "terminal_mapping.json"), encoding="utf-8") as file:
+        mapping = json.load(file)
+    assert mapping["is_infeasible_task"] is True
+    assert mapping["osworld_fail_injected"] is True
+    assert mapping["injected_fail_reason"] == "steps_artifact_missing"
+
+    direct_dir = os.path.join(result_dir, "terminal_mapping", "direct_skip_cases")
+    run_dir = os.path.join(direct_dir, "cua_runs", "fake-run")
+    os.makedirs(run_dir, exist_ok=True)
+    with open(os.path.join(direct_dir, "cua_meta.json"), "w", encoding="utf-8") as file:
+        json.dump({"failure_type": None}, file)
+    with open(os.path.join(run_dir, "steps.json"), "w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "runId": "fake-run",
+                "success": "interrupted",
+                "reason": "needs_user: tool broke",
+                "steps": [{"step": 1, "actionName": "wait_for_user", "actionArgs": {"message": "help"}}],
+            },
+            file,
+        )
+    env = FakeNormalEnv()
+    mapping = _apply_cua_terminal_action_mapping(env, {}, direct_dir, SimpleNamespace(failure_type="bridge_exec_failed"))
+    assert mapping["osworld_fail_injected"] is False
+    assert mapping["skipped_reason"] == "cua_result_failure_type:bridge_exec_failed"
+    assert env.action_history == []
+
+    mapping = _apply_cua_terminal_action_mapping(
+        env,
+        {"evaluator": {"func": "infeasible"}},
+        direct_dir,
+        SimpleNamespace(failure_type="bridge_exec_failed"),
+    )
+    assert mapping["osworld_fail_injected"] is True
+    assert mapping["injected_fail_reason"] == "cua_result_failure_type:bridge_exec_failed"
+    assert env.action_history == ["FAIL"]
+
+    with open(os.path.join(run_dir, "steps.json"), "w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "runId": "fake-run",
+                "success": False,
+                "reason": "max_duration_exceeded: reached max_duration_ms=1",
+                "steps": [{"step": 1, "actionName": None, "actionArgs": None}],
+            },
+            file,
+        )
+    env.action_history.clear()
+    mapping = _apply_cua_terminal_action_mapping(env, {}, direct_dir, SimpleNamespace(failure_type=None))
+    assert mapping["osworld_fail_injected"] is False
+    assert mapping["skipped_reason"] == "runtime_limit:max_duration_exceeded"
+    assert env.action_history == []
+
+    mapping = _apply_cua_terminal_action_mapping(
+        env,
+        {"evaluator": {"func": "infeasible"}},
+        direct_dir,
+        SimpleNamespace(failure_type=None),
+    )
+    assert mapping["osworld_fail_injected"] is True
+    assert mapping["injected_fail_reason"] == "runtime_limit:max_duration_exceeded"
+    assert env.action_history == ["FAIL"]
 
 
 def _prepare_summary_fixture(result_dir: str) -> tuple[str, dict[str, list[str]], str]:
@@ -1020,6 +1290,7 @@ def main() -> int:
             "launcher CUA steps artifact mirroring",
             lambda: check_launcher_steps_artifact_mirroring(result_dir),
         ),
+        run_check("SMK-024", "blackbox terminal action mapping", lambda: check_terminal_action_mapping(result_dir)),
     ]
 
     passed = all(item.passed for item in checks)
