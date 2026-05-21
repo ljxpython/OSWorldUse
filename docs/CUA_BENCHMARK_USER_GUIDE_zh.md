@@ -183,7 +183,7 @@ StopInstances -> ReplaceSystemVolume -> StartInstances -> 等待 OSWorld ready
 ```bash
 VOLCENGINE_POOL_ENABLED=1
 VOLCENGINE_POOL_NAME=osworld-cua
-VOLCENGINE_POOL_SIZE=20
+VOLCENGINE_POOL_SIZE=25
 
 # 本机 Mac runner 需要公网访问时使用 1/0。
 VOLCENGINE_ALLOCATE_PUBLIC_EIP=1
@@ -213,10 +213,22 @@ VOLCENGINE_REINSTALL_SEMAPHORE_WAIT_SECONDS=3600
 说明：
 
 - `VOLCENGINE_POOL_SIZE` 未设置或为 `0` 时，批量 runner 会用 `--num_envs` 作为预热目标。
-- `VOLCENGINE_REINSTALL_CONCURRENCY` 限制同一 runner 内同时重装系统盘的 ECS 数；设为 `0` 表示不限制。
+- `VOLCENGINE_REINSTALL_CONCURRENCY` 限制同一 runner 内同时重装系统盘的 ECS 数；设为 `0` 表示不限制。当前 25 并发已用 `5` 跑通；如果要提速，可以单独用 `15` 做一轮重装压力验证，遇到火山 ECS 控制面频控或 OSWorld ready 抖动时先退到 `10` 或 `5`。
 - `VOLCENGINE_REINSTALL_RETRY_*` 只作用于 `ReplaceSystemVolume` 提交阶段的临时错误或频控错误。
 - 池化模式下 `close()` 只释放本地 lease，不删除 ECS。下一次分配给 case 前仍会重装系统盘。
 - 当前不支持多 runner 共享同一个 ECS 池；不要让多台 runner 同时使用同一个 `VOLCENGINE_POOL_NAME`。
+
+如果 `.env` 已配置池化参数，运行命令里不需要重复传这些环境变量；临时压测某个值时可以在命令前覆盖，例如：
+
+```bash
+env VOLCENGINE_REINSTALL_CONCURRENCY=15 \
+  uv run python "scripts/python/run_multienv_cua_blackbox.py" \
+    --provider_name volcengine \
+    --num_envs 25 \
+    ...
+```
+
+25 并发 evaluator CDP 专项验证未复现 `BrowserType.connect_over_cdp: read ECONNRESET`。当前不需要改 evaluator 侧代码；只有后续真实业务高并发再次在 evaluator 阶段复现该错误时，再把 `desktop_env/evaluators/getters/chrome.py` 的 CDP 连接统一收敛到带重试的 helper。
 
 池状态检查：
 
@@ -627,7 +639,7 @@ try to connect http://<ip>:5000
 
 ### 5.2 池化高并发运行
 
-如果目标是 15、20、30 并发，不建议继续让每个 case 删除重建 ECS。推荐先用池化模式跑 mock lifecycle smoke。这个 suite 不依赖 LibreOffice、Chrome 或真实业务 evaluator，只验证池预热、worker 占用、第二轮 case 触发系统盘重装、lease 释放和 summary/report：
+如果目标是 15、20、25 并发，不建议继续让每个 case 删除重建 ECS。推荐先用池化模式跑 mock lifecycle smoke。这个 suite 不依赖 LibreOffice、Chrome 或真实业务 evaluator，只验证池预热、worker 占用、第二轮 case 触发系统盘重装、lease 释放和 summary/report：
 
 ```bash
 env \

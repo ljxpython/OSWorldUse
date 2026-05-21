@@ -153,7 +153,7 @@ manager.ensure_pool_size(target_size=num_envs)
 ```bash
 VOLCENGINE_POOL_ENABLED=1
 VOLCENGINE_POOL_NAME=osworld-cua
-VOLCENGINE_POOL_SIZE=30
+VOLCENGINE_POOL_SIZE=25
 VOLCENGINE_ALLOCATE_PUBLIC_EIP=0
 ```
 
@@ -202,7 +202,7 @@ registry 记录：
 8. 等待 OSWorld server 可用。
 9. 校验分辨率和关键端口。
 
-当前实现已经提供本地 runner 内的重装并发闸门。它用 `VOLCENGINE_REINSTALL_LOCK_DIR` 下的文件锁限制同时执行重装流程的 ECS 数量，默认最多 5 台。这个闸门覆盖 stop、`ReplaceSystemVolume`、start 和 OSWorld ready 等待，避免 20/30 并发时同时打爆火山云 API 或镜像服务。
+当前实现已经提供本地 runner 内的重装并发闸门。它用 `VOLCENGINE_REINSTALL_LOCK_DIR` 下的文件锁限制同时执行重装流程的 ECS 数量，默认最多 5 台。这个闸门覆盖 stop、`ReplaceSystemVolume`、start 和 OSWorld ready 等待，避免 20/30 并发时同时打爆火山云 API 或镜像服务。25 并发已用 `5` 跑通；如需提速，可单独把 `VOLCENGINE_REINSTALL_CONCURRENCY` 提到 `15` 做控制面压力验证，出现频控或 ready 抖动时回退到 `10` 或 `5`。
 
 `ReplaceSystemVolume` 提交阶段也有退避重试。单次 reset 会复用同一个 `ClientToken`，避免接口重试时重复提交不同请求。默认最多重试 5 次，初始等待 15 秒，指数退避，上限 90 秒。权限、镜像、参数、实例不存在等永久错误不会重试。
 
@@ -391,7 +391,7 @@ VOLCENGINE_POOL_ENABLED=1
 VOLCENGINE_POOL_NAME=osworld-cua
 
 # 目标池大小。未设置时由 --num_envs 推导。
-VOLCENGINE_POOL_SIZE=30
+VOLCENGINE_POOL_SIZE=25
 
 # 云端 runner 同 VPC 推荐关闭公网 EIP。
 VOLCENGINE_ALLOCATE_PUBLIC_EIP=0
@@ -458,9 +458,8 @@ VOLCENGINE_POOL_ENABLED=0
 第四阶段，目标并发：
 
 1. 云端 runner 同 VPC，设置 `VOLCENGINE_ALLOCATE_PUBLIC_EIP=0`。
-2. `VOLCENGINE_POOL_SIZE=20` 跑 smoke。
-3. `VOLCENGINE_POOL_SIZE=30` 跑 smoke。
-4. 再跑完整 benchmark。
+2. `VOLCENGINE_POOL_SIZE=25` 跑 smoke。
+3. 再跑完整 benchmark。
 
 ## 风险和处理
 
