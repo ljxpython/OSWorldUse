@@ -16,8 +16,6 @@ dependencies = [
     "groq",
     "boto3",
     "uvicorn",
-    "paddleocr",
-    "paddlepaddle",
     "together",
     "scikit-learn",
     "websockets",

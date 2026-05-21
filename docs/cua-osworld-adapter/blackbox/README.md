@@ -19,11 +19,13 @@
 - `scripts/python/validate_cua_regression_cases.py`
 - `scripts/python/check_cua_case_acceptance.py`
 - `scripts/python/check_osworld_env_step.py`
+- `scripts/python/volcengine_pool.py`
 - `lib_run_single.run_single_example_cua_blackbox()`
 
 当前优化规划：
 
 - [OpenClaw Shim 兼容性优化规划](./OPENCLAW_SHIM_COMPATIBILITY_PLAN_zh.md)
+- [火山云高并发 EIP 池化与系统重装方案](./VOLCENGINE_EIP_POOL_AND_REINSTALL_PLAN_zh.md)
 
 当前固定回归集合：
 
