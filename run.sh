@@ -7,11 +7,11 @@ RUN_TS=$(date +%Y%m%d_%H%M%S)
 uv run python "scripts/python/run_multienv_cua_blackbox.py" \
   --os_type Ubuntu \
   --provider_name volcengine \
-  --test_all_meta_path "evaluation_examples/test_nogdrive.json" \
+  --test_all_meta_path "evaluation_examples/office_cases.json" \
   --domain all \
   --model "cua-ubuntu-full-nogdrive-cleanpool" \
-  --result_dir "./results_volcengine_ubuntu_full_cleanpool_${RUN_TS}" \
-  --num_envs 28 \
+  --result_dir "./results_volcengine_ubuntu_office_cleanpool_${RUN_TS}" \
+  --num_envs 11 \
   --max_steps 100 \
   --env_ready_sleep 10 \
   --settle_sleep 5 \

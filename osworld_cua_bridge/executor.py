@@ -315,6 +315,10 @@ class CuaBridgeExecutor:
             )
             if req.tool == "clipboard_type":
                 command = self._clipboard_command(req.args)
+            elif req.tool == "keyboard_type":
+                command = self._clipboard_command(
+                    {"text": str(mapped_args.get("text") or req.args.get("text") or "")}
+                )
             elif req.tool == "app_open":
                 command = self._app_open_command(req.args, platform=str(getattr(self.env, "os_type", "")))
             else:
@@ -578,19 +582,17 @@ class CuaBridgeExecutor:
             "    if not (shutil.which('bash') and shutil.which('xclip')):\n"
             "        raise FileNotFoundError('xclip is not available')\n"
             "    _cua_clipboard_proc = subprocess.Popen(\n"
-            "        ['bash', '-lc', f\"printf %s {_cua_text!r} | xclip -selection clipboard -loops 1\"],\n"
+            "        ['bash', '-lc', f\"printf %s {_cua_text!r} | xclip -selection clipboard\"],\n"
             "        stdout=subprocess.DEVNULL,\n"
             "        stderr=subprocess.DEVNULL,\n"
             "        start_new_session=True,\n"
             "    )\n"
-            "    time.sleep(0.2)\n"
+            "    time.sleep(0.3)\n"
             "    if _cua_clipboard_proc.poll() not in (None, 0):\n"
             "        raise RuntimeError('xclip clipboard setup failed')\n"
             "    pyautogui.hotkey('ctrl', 'v')\n"
-            "    try:\n"
-            "        _cua_clipboard_proc.wait(timeout=2)\n"
-            "    except Exception:\n"
-            "        _cua_stop_proc(_cua_clipboard_proc)\n"
+            "    time.sleep(0.3)\n"
+            "    _cua_stop_proc(_cua_clipboard_proc)\n"
             "except Exception:\n"
             "    _cua_direct_type()\n"
         )

@@ -339,7 +339,11 @@ def run_ai_analysis(case: Dict[str, Any]) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as handle:
         subprocess.run(
-            command, stdout=handle, stderr=subprocess.STDOUT, check=True, env=env
+            command,
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            check=True,
+            env=env,
         )
 
 
@@ -441,7 +445,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--force", action="store_true", help="Re-run terminal cases.")
     run.add_argument("--max-cases", type=int)
-    run.add_argument("--max-parallel", type=int, default=1)
+    run.add_argument("--max-parallel", type=int, default=3)
 
     analyze = subparsers.add_parser("analyze", help="Create a manifest and run it.")
     analyze.add_argument(
