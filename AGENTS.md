@@ -125,6 +125,13 @@ Add focused tests under `tests/` with filenames matching `test_*.py`. The curren
 
 Recent history uses concise imperative subjects, sometimes with prefixes such as `feat:`, `chore(deps):`, and `merge:`. Keep commits scoped and describe behavior changed, not just files edited. Pull requests should include a summary, commands run, relevant provider or OS details, linked issues, and screenshots or result artifacts when UI, reports, or benchmark outputs change.
 
+## CUA Agent Behavior Configuration
+
+CUA agent 的行为参数应优先通过 `OSWORLD_CUA_CONFIG_PATH` 指向的 JSON 配置文件修改。`osworld_cua_bridge/launcher.py` 只负责 OSWorld bridge 必需的 per-run 动态参数和少量运行前提覆盖，避免把 CUA CLI 版本未声明支持的实验参数硬塞到启动命令里。
+
+- 在 JSON 中调整：`agent.knowledge.*`、`agent.records.enabled`、`agent.brain.*`、`agent.doneGate.enabled`、`model.*`、`tools.*` 等。需要做实验对比时，复制一份 JSON 改字段，再用 `--cua_config_path` 切换。
+- launcher 可以覆盖 OSWorld 运行必需字段，例如 `agent.headless = false`、`agent.toolProfile = "osworld"`、`tools.officecli.enabled = false`、`agent.runsDir` 和 `coords.normalizedInput`。新增 CUA CLI 参数前必须先确认当前 `OSWORLD_CUA_BIN` 指向的 CLI 支持该参数。
+
 ## Configuration & Security Notes
 
 Store local credentials in `.env` or shell variables such as `OPENAI_API_KEY`, `OSWORLD_CUA_BIN`, and `OSWORLD_CUA_CONFIG_PATH`. Treat `cache/`, `logs/`, `results*`, and VM paths as local runtime data. Add sanitized examples to docs instead of committing machine-specific configuration.

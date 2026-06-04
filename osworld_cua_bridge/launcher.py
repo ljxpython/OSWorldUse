@@ -42,6 +42,9 @@ DEFAULT_CUA_CONFIG_PATH = os.environ.get("OSWORLD_CUA_CONFIG_PATH")
 DEFAULT_CUA_REPO_ROOT = os.environ.get("OSWORLD_CUA_REPO_ROOT")
 
 OSWORLD_TOOL_PROFILE = "osworld"
+DEFAULT_OPENCLAW_REQUEST_TIMEOUT_SECONDS = 180.0
+OPENCLAW_REQUEST_TIMEOUT_GRACE_SECONDS = 60.0
+MAX_OPENCLAW_REQUEST_TIMEOUT_SECONDS = 300.0
 
 
 def _env_float(name: str, default: float, minimum: float | None = None) -> float:
@@ -112,20 +115,6 @@ def resolve_cua_command(cua_bin: str | None) -> list[str]:
     return ["cua"]
 
 
-def _resolve_cua_knowledge_dir(config_path: str) -> str:
-    expanded = os.path.abspath(os.path.expanduser(os.path.expandvars(config_path)))
-    config_dir = os.path.dirname(expanded)
-    candidates = [
-        os.path.join(config_dir, "..", "knowledge"),
-        os.path.join(config_dir, "knowledge"),
-    ]
-    for candidate in candidates:
-        candidate = os.path.abspath(candidate)
-        if os.path.isdir(candidate):
-            return candidate
-    return "knowledge"
-
-
 def _domain_from_result_dir(example_result_dir: str) -> str:
     # Blackbox result dirs are shaped as .../<model>/<domain>/<task_id>.
     return os.path.basename(os.path.dirname(os.path.abspath(example_result_dir)))
@@ -155,7 +144,6 @@ def run_cua_blackbox(
     source_config_path = os.path.abspath(
         os.path.expanduser(os.path.expandvars(config_path))
     )
-    knowledge_dir = _resolve_cua_knowledge_dir(source_config_path)
     source_config_sha256 = _file_sha256(source_config_path)
     normalized_input = _config_normalized_input(config_path)
     office_domain = _domain_from_result_dir(example_result_dir)
@@ -233,10 +221,6 @@ def run_cua_blackbox(
         "1",
         "--max-steps",
         str(max_steps),
-        "--knowledge-dir",
-        knowledge_dir,
-        "--records-off",
-        "--brain-off",
     ]
     tool_profile_name = OSWORLD_TOOL_PROFILE
     if max_duration_ms > 0:
@@ -250,7 +234,10 @@ def run_cua_blackbox(
     openclaw_timeout_seconds = _openclaw_timeout_seconds(max_step_duration_ms)
     bridge_drain_timeout_seconds = _env_float(
         "OSWORLD_CUA_BRIDGE_DRAIN_TIMEOUT_SECONDS",
-        min(max(openclaw_timeout_seconds + 5.0, 35.0), 95.0),
+        min(
+            max(openclaw_timeout_seconds + 5.0, 35.0),
+            MAX_OPENCLAW_REQUEST_TIMEOUT_SECONDS + 5.0,
+        ),
         minimum=0.0,
     )
     env_vars.update(
@@ -297,6 +284,7 @@ def run_cua_blackbox(
                 exit_code, stopped_by_stdout_done = _wait_for_process_or_stdout_done(
                     process,
                     stdout_path,
+                    runs_dir=runs_dir,
                     timeout_seconds=timeout_seconds,
                 )
             finally:
@@ -363,6 +351,28 @@ def run_cua_blackbox(
                 failure_subtype = diagnosis_result.get("failure_subtype")
                 failure_summary = diagnosis_result.get("summary")
                 timeout_diagnosis = diagnosis_result.get("timeout_diagnosis")
+        elif isinstance(last_bridge_failure, dict) and failure_type == str(
+            last_bridge_failure.get("failure_type") or ""
+        ):
+            failure_subtype = str(last_bridge_failure.get("failure_subtype") or "") or None
+            failure_summary = str(last_bridge_failure.get("failure_summary") or "") or None
+        if (
+            not failure_subtype
+            and failure_type in (CUA_NONZERO_EXIT, CUA_REPORTED_FAILURE)
+        ):
+            try:
+                llm_diag = diagnose_cua_timeout(
+                    example_result_dir,
+                    failure_reason=failure_reason or "",
+                    bridge_summary=bridge_summary,
+                )
+            except Exception:
+                llm_diag = None
+            if isinstance(llm_diag, dict):
+                candidate = str(llm_diag.get("failure_subtype") or "")
+                if candidate.startswith("llm_"):
+                    failure_subtype = candidate
+                    failure_summary = llm_diag.get("summary") or failure_summary
         write_failure(
             example_result_dir,
             failure_type,
@@ -386,6 +396,8 @@ def run_cua_blackbox(
             if failure_type:
                 file.write(f"[osworld] failure_type={failure_type}\n")
                 file.write(f"[osworld] failure_stage={failure_stage}\n")
+                if failure_subtype:
+                    file.write(f"[osworld] failure_subtype={failure_subtype}\n")
     except Exception:
         pass
     result = CuaRunResult(
@@ -443,10 +455,21 @@ def _target_os_from_args(args: Any) -> str:
 def _openclaw_timeout_seconds(max_step_duration_ms: int) -> float:
     configured = os.getenv("OSWORLD_OPENCLAW_REQUEST_TIMEOUT_SECONDS")
     if configured not in (None, ""):
-        return _env_float("OSWORLD_OPENCLAW_REQUEST_TIMEOUT_SECONDS", 90.0, minimum=1.0)
+        return _env_float(
+            "OSWORLD_OPENCLAW_REQUEST_TIMEOUT_SECONDS",
+            DEFAULT_OPENCLAW_REQUEST_TIMEOUT_SECONDS,
+            minimum=1.0,
+        )
     if max_step_duration_ms > 0:
-        return max(5.0, min(max_step_duration_ms / 1000.0 + 10.0, 120.0))
-    return 90.0
+        return max(
+            5.0,
+            min(
+                max_step_duration_ms / 1000.0
+                + OPENCLAW_REQUEST_TIMEOUT_GRACE_SECONDS,
+                MAX_OPENCLAW_REQUEST_TIMEOUT_SECONDS,
+            ),
+        )
+    return DEFAULT_OPENCLAW_REQUEST_TIMEOUT_SECONDS
 
 
 def _failure_from_cua_stdout(stdout: str) -> tuple[str, str, str] | None:
@@ -467,6 +490,7 @@ def _wait_for_process_or_stdout_done(
     process: subprocess.Popen[str],
     stdout_path: str,
     *,
+    runs_dir: str | None = None,
     timeout_seconds: float | None,
 ) -> tuple[int, bool]:
     deadline = time.time() + timeout_seconds if timeout_seconds is not None else None
@@ -476,8 +500,17 @@ def _wait_for_process_or_stdout_done(
             return int(exit_code), False
 
         if _stdout_has_done_action(stdout_path):
-            _terminate_process_tree(process, grace_seconds=2.0)
-            return 0, True
+            status = _latest_cua_done_status(runs_dir) if runs_dir else "accepted"
+            if status == "rejected":
+                pass
+            elif status == "accepted" or status == "legacy_no_steps":
+                _terminate_process_tree(process, grace_seconds=2.0)
+                return 0, True
+            elif status == "unknown":
+                # Modern CUA writes step artifacts and may still be running
+                # completion verification or may reject the done attempt. Do
+                # not terminate just because the proposed action was printed.
+                pass
 
         if deadline is not None and time.time() >= deadline:
             raise subprocess.TimeoutExpired(process.args, timeout_seconds)
@@ -498,6 +531,63 @@ def _stdout_has_done_action(stdout_path: str) -> bool:
     except FileNotFoundError:
         return False
     return "action: done" in tail
+
+
+def _latest_cua_done_status(runs_dir: str | None) -> str:
+    """Return accepted/rejected/unknown/legacy_no_steps for the newest CUA done step.
+
+    The launcher historically stopped as soon as stdout contained "action: done".
+    Modern CUA can reject done internally (for example done_rejected by Verdict1
+    or save-dialog guards) and then continue. In that case the bridge must not
+    terminate the process just because the rejected attempt was printed.
+    """
+    if not runs_dir or not os.path.isdir(runs_dir):
+        return "legacy_no_steps"
+
+    latest_step: dict[str, Any] | None = None
+    latest_mtime = -1.0
+    saw_artifact = False
+    for run_dir in _discover_cua_run_dirs(runs_dir):
+        for path in (
+            os.path.join(run_dir, "steps.json"),
+            os.path.join(run_dir, "steps.jsonl"),
+        ):
+            if not os.path.exists(path):
+                continue
+            saw_artifact = True
+            try:
+                mtime = os.path.getmtime(path)
+                steps = _read_cua_steps_artifact(path)
+            except Exception:
+                continue
+            if not steps:
+                continue
+            candidate = steps[-1]
+            if mtime >= latest_mtime:
+                latest_mtime = mtime
+                latest_step = candidate
+
+    if not saw_artifact:
+        return "legacy_no_steps"
+    if not latest_step:
+        return "unknown"
+    if str(latest_step.get("actionName") or latest_step.get("action") or "") != "done":
+        return "unknown"
+    error = str(latest_step.get("error") or latest_step.get("result") or "").strip()
+    if error.startswith("done_rejected:"):
+        return "rejected"
+    return "accepted"
+
+
+def _read_cua_steps_artifact(path: str) -> list[dict[str, Any]]:
+    if path.endswith(".jsonl"):
+        return _read_steps_jsonl(path)
+    with open(path, "r", encoding="utf-8") as file:
+        payload = json.load(file)
+    steps = payload.get("steps") if isinstance(payload, dict) else None
+    if not isinstance(steps, list):
+        return []
+    return [step for step in steps if isinstance(step, dict)]
 
 
 def _install_signal_cleanup(
@@ -735,24 +825,12 @@ def _prepare_runtime_config(
 
     env_overrides: dict[str, str] = {}
     config_redacted = _externalize_model_api_key(data, env_overrides)
-    knowledge_dir = _resolve_cua_knowledge_dir(expanded)
 
     agent = data.setdefault("agent", {})
     if not isinstance(agent, dict):
         agent = {}
         data["agent"] = agent
     agent["headless"] = False
-    knowledge = agent.get("knowledge", {})
-    if not isinstance(knowledge, dict):
-        knowledge = {}
-    knowledge_patch = {
-        **knowledge,
-        "enabled": True,
-        "dir": knowledge_dir,
-    }
-    agent["knowledge"] = knowledge_patch
-    agent["records"] = {**agent.get("records", {}), "enabled": False}
-    agent["brain"] = {**agent.get("brain", {}), "enabled": False}
     # ── Tool profile injection ──────────────────────────────────────────────
     agent["toolProfile"] = OSWORLD_TOOL_PROFILE
     agent["runsDir"] = os.path.abspath(os.path.join(example_result_dir, "cua_runs"))
@@ -768,7 +846,6 @@ def _prepare_runtime_config(
 
     coords = data.setdefault("coords", {})
     coords["normalizedInput"] = bool(coords.get("normalizedInput", True))
-    coords["dpr"] = 1
 
     runtime_config_path = os.path.abspath(
         os.path.join(example_result_dir, "cua_runtime_config.json")

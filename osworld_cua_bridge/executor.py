@@ -5,12 +5,13 @@ import inspect
 import json
 import logging
 import os
+import shlex
 import textwrap
 import threading
 import time
 from typing import Any
 
-from osworld_cua_bridge.failures import bridge_failure_type_from_code
+from osworld_cua_bridge.failures import bridge_failure_type_from_code, classify_bridge_failure
 from osworld_cua_bridge.protocol import BRIDGE_PROTOCOL_VERSION, BridgeProtocolError, BridgeRequest, error, ok, parse_request
 from osworld_cua_bridge.tool_translator import (
     ToolTranslationError,
@@ -316,9 +317,7 @@ class CuaBridgeExecutor:
             if req.tool == "clipboard_type":
                 command = self._clipboard_command(req.args)
             elif req.tool == "keyboard_type":
-                command = self._clipboard_command(
-                    {"text": str(mapped_args.get("text") or req.args.get("text") or "")}
-                )
+                command = translate_tool_to_pyautogui(req.tool, mapped_args)
             elif req.tool == "app_open":
                 command = self._app_open_command(req.args, platform=str(getattr(self.env, "os_type", "")))
             else:
@@ -391,27 +390,33 @@ class CuaBridgeExecutor:
                 stderr = str(shell_result.get("stderr") or "").strip()
                 stdout = str(shell_result.get("stdout") or "").strip()
                 message = stderr or stdout or f"shell command exit code {inner_returncode}"
+                details = self._shell_failure_details(
+                    req,
+                    command=command,
+                    shell=shell,
+                    shell_result=shell_result,
+                    controller_result=result,
+                    message=message,
+                )
                 return error(
                     "SHELL_EXEC_FAILED",
                     message,
-                    {
-                        "tool": req.tool,
-                        "command": command,
-                        "shellResult": shell_result,
-                        "controllerResult": result,
-                    },
+                    details,
                 )
             if inner_returncode is None:
                 message = str(shell_result.get("stderr") or shell_result.get("stdout") or "shell command failed").strip()
+                details = self._shell_failure_details(
+                    req,
+                    command=command,
+                    shell=shell,
+                    shell_result=shell_result,
+                    controller_result=result,
+                    message=message or "shell command failed",
+                )
                 return error(
                     "SHELL_EXEC_FAILED",
                     message or "shell command failed",
-                    {
-                        "tool": req.tool,
-                        "command": command,
-                        "shellResult": shell_result,
-                        "controllerResult": result,
-                    },
+                    details,
                 )
 
         return ok(
@@ -426,6 +431,35 @@ class CuaBridgeExecutor:
                 "controllerResult": result,
             }
         )
+
+    def _shell_failure_details(
+        self,
+        req: BridgeRequest,
+        *,
+        command: str,
+        shell: bool,
+        shell_result: dict[str, Any],
+        controller_result: dict[str, Any],
+        message: str,
+    ) -> dict[str, Any]:
+        details: dict[str, Any] = {
+            "tool": req.tool,
+            "command": command,
+            "userCommand": self._shell_user_command(req.args, shell=shell),
+            "cwd": req.args.get("cwd"),
+            "timeoutSeconds": self._shell_timeout_seconds(req.args),
+            "shellResult": shell_result,
+            "controllerResult": controller_result,
+        }
+        classification = classify_bridge_failure(
+            "SHELL_EXEC_FAILED",
+            message,
+            tool=req.tool,
+            details=details,
+        )
+        details["failureSubtype"] = classification["failure_subtype"]
+        details["failureSummary"] = classification["failure_summary"]
+        return details
 
     def _execute_controller_command(self, command: str, *, timeout: float | None = None) -> Any:
         execute = self.env.controller.execute_python_command
@@ -454,10 +488,27 @@ class CuaBridgeExecutor:
             raise
 
     def failure_summary(self) -> dict[str, Any]:
+        subtype_counts: dict[str, int] = {}
+        for key, count in self._failure_counts.items():
+            if "/" not in key:
+                continue
+            _failure_type, subtype = key.split("/", 1)
+            subtype_counts[subtype] = subtype_counts.get(subtype, 0) + count
         return {
-            "bridge_error_count": sum(self._failure_counts.values()),
-            "bridge_failure_counts": dict(sorted(self._failure_counts.items())),
-            "bridge_failure_types": sorted(self._failure_counts),
+            "bridge_error_count": sum(
+                count for key, count in self._failure_counts.items() if "/" not in key
+            ),
+            "bridge_failure_counts": dict(
+                sorted(
+                    (key, count)
+                    for key, count in self._failure_counts.items()
+                    if "/" not in key
+                )
+            ),
+            "bridge_failure_subtype_counts": dict(sorted(subtype_counts.items())),
+            "bridge_failure_types": sorted(
+                key for key in self._failure_counts if "/" not in key
+            ),
             "last_bridge_failure": self._last_failure,
         }
 
@@ -474,11 +525,27 @@ class CuaBridgeExecutor:
             code = str(error_payload.get("code") or "UNKNOWN")
             failure_type = bridge_failure_type_from_code(code)
             message = str(error_payload.get("message") or "")
-            details = error_payload.get("details") if isinstance(error_payload.get("details"), dict) else {}
+            details = (
+                error_payload.get("details")
+                if isinstance(error_payload.get("details"), dict)
+                else {}
+            )
+        classification = classify_bridge_failure(
+            code,
+            message,
+            tool=tool,
+            details=details,
+        )
+        failure_subtype = classification["failure_subtype"]
+        failure_summary = classification["failure_summary"]
 
         self._failure_counts[failure_type] = self._failure_counts.get(failure_type, 0) + 1
+        subtype_key = f"{failure_type}/{failure_subtype}"
+        self._failure_counts[subtype_key] = self._failure_counts.get(subtype_key, 0) + 1
         self._last_failure = {
             "failure_type": failure_type,
+            "failure_subtype": failure_subtype,
+            "failure_summary": failure_summary,
             "failure_reason": message,
             "bridge_error_code": code,
             "tool": tool,
@@ -579,14 +646,19 @@ class CuaBridgeExecutor:
             "            proc.kill()\n"
             "\n"
             "try:\n"
-            "    if not (shutil.which('bash') and shutil.which('xclip')):\n"
+            "    if not shutil.which('xclip'):\n"
             "        raise FileNotFoundError('xclip is not available')\n"
             "    _cua_clipboard_proc = subprocess.Popen(\n"
-            "        ['bash', '-lc', f\"printf %s {_cua_text!r} | xclip -selection clipboard\"],\n"
+            "        ['xclip', '-selection', 'clipboard'],\n"
+            "        stdin=subprocess.PIPE,\n"
             "        stdout=subprocess.DEVNULL,\n"
             "        stderr=subprocess.DEVNULL,\n"
             "        start_new_session=True,\n"
             "    )\n"
+            "    if _cua_clipboard_proc.stdin is None:\n"
+            "        raise RuntimeError('xclip stdin is unavailable')\n"
+            "    _cua_clipboard_proc.stdin.write(_cua_text.encode('utf-8'))\n"
+            "    _cua_clipboard_proc.stdin.close()\n"
             "    time.sleep(0.3)\n"
             "    if _cua_clipboard_proc.poll() not in (None, 0):\n"
             "        raise RuntimeError('xclip clipboard setup failed')\n"
@@ -608,6 +680,25 @@ class CuaBridgeExecutor:
 
     def _shell_controller_timeout(self, args: dict[str, Any]) -> float:
         return max(self._controller_exec_timeout_seconds, self._shell_timeout_seconds(args) + 10.0)
+
+    @staticmethod
+    def _shell_user_command(args: dict[str, Any], *, shell: bool) -> str:
+        cmd = args.get("cmd", args.get("command"))
+        if cmd is None:
+            return ""
+        argv = args.get("args", [])
+        if shell:
+            if isinstance(argv, list) and argv:
+                return f"{cmd} {' '.join(str(item) for item in argv)}"
+            if argv:
+                return f"{cmd} {argv}"
+            return str(cmd)
+        parts = [str(cmd)]
+        if isinstance(argv, list):
+            parts.extend(str(item) for item in argv)
+        elif argv:
+            parts.append(str(argv))
+        return " ".join(shlex.quote(part) for part in parts)
 
     @staticmethod
     def _shell_command(args: dict[str, Any], *, shell: bool) -> str:
