@@ -235,13 +235,10 @@ def run_cua_blackbox(
         str(max_steps),
         "--knowledge-dir",
         knowledge_dir,
-        "--officecli-off",
         "--records-off",
         "--brain-off",
     ]
     tool_profile_name = OSWORLD_TOOL_PROFILE
-    command.extend(["--tool-profile", tool_profile_name])
-    print(f"[osworld] tool_profile={tool_profile_name}", file=sys.stderr)
     if max_duration_ms > 0:
         command.extend(["--max-duration-ms", str(max_duration_ms)])
     if max_step_duration_ms > 0:
