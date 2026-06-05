@@ -372,9 +372,12 @@ class DesktopEnv(gym.Env):
             try:
                 self.setup_controller.cleanup_chrome_residuals()
             except Exception as cleanup_err:
-                logger.warning(
-                    "cleanup_chrome_residuals raised: %s", cleanup_err
-                )
+                logger.warning("cleanup_chrome_residuals raised: %s", cleanup_err)
+
+            try:
+                self.controller.cleanup_recording()
+            except Exception as cleanup_err:
+                logger.warning("cleanup_recording raised: %s", cleanup_err)
 
             if task_config is not None:
                 if task_config.get("proxy", False) and self.enable_proxy:
