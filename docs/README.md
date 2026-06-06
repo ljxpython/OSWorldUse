@@ -14,6 +14,8 @@
   面向 OSWorld 仓库源码阅读、运行链路、Agent 接入和实践文档。
 - `research/`
   面向 CUA、Benchmark、成本核算、环境验证和方案设计的研究笔记。
+- `runtime-service/`
+  面向 OSWorld 作为内部 Runtime Service 的边界、多服务器部署、一致性和规划讨论。
 - `cua-osworld-adapter/`
   这是 CUA 接入 OSWorld 的主线文档目录。当前支持的实现路线已经收敛到 blackbox bridge。
   `blackbox/` 补充文档现在已经并入这个目录下面。
@@ -71,6 +73,11 @@
 
 - [研究文档索引](./research/README.md)
 - [火山云高并发 EIP 池化与系统重装方案](./cua-osworld-adapter/blackbox/VOLCENGINE_EIP_POOL_AND_REINSTALL_PLAN_zh.md)
+
+## Runtime Service
+
+- [OSWorld Runtime Service 方案讨论目录](./runtime-service/README.md)
+- [OSWorld Runtime Service 路由与地址约定](./runtime-service/04-routing-and-addressing_zh.md)
 
 ## CUA OSWorld Adapter
 
