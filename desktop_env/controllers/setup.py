@@ -865,21 +865,42 @@ class SetupController:
         #   .pma，这是 crash bubble 的另一来源。
         cleanup_py = textwrap.dedent(
             """
-            import json, os, shutil, signal, subprocess, time, glob
+            import json, os, re, shutil, signal, time, glob
 
-            def _kill(pat):
+            SELF_PIDS = {os.getpid(), os.getppid()}
+            PATTERNS = (
+                "google-chrome",
+                "chromium",
+                "remote-debugging-port=",
+                "socat.*tcp-listen:9222",
+            )
+
+            def _cmdline(pid):
                 try:
-                    subprocess.run(["pkill", "-9", "-f", pat],
-                                   stdout=subprocess.DEVNULL,
-                                   stderr=subprocess.DEVNULL,
-                                   check=False)
+                    with open(f"/proc/{pid}/cmdline", "rb") as fp:
+                        raw = fp.read()
                 except Exception:
-                    pass
+                    return ""
+                return raw.replace(b"\\x00", b" ").decode("utf-8", "ignore")
 
-            for pat in ("google-chrome", "chromium",
-                         "remote-debugging-port=",
-                         "socat.*tcp-listen:9222"):
-                _kill(pat)
+            def _kill_leftovers():
+                for proc_dir in glob.glob("/proc/[0-9]*"):
+                    try:
+                        pid = int(os.path.basename(proc_dir))
+                    except ValueError:
+                        continue
+                    if pid in SELF_PIDS:
+                        continue
+                    cmd = _cmdline(pid)
+                    if not cmd:
+                        continue
+                    if any(re.search(pat, cmd) for pat in PATTERNS):
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except Exception:
+                            pass
+
+            _kill_leftovers()
             time.sleep(1)
 
             HOME = os.path.expanduser("~")

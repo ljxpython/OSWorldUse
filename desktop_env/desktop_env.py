@@ -339,6 +339,10 @@ class DesktopEnv(gym.Env):
                 break
 
         logger.info("Environment setup complete.")
+        if not setup_succeeded:
+            raise RuntimeError(
+                f"Environment setup failed after {MAX_RETRIES} attempt(s)."
+            )
 
         observation = self._get_obs()
         return observation
