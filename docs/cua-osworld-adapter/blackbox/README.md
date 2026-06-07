@@ -84,6 +84,7 @@ Web 展示是只读模式，只暴露 `result_root` 内的 artifacts。
 - `OSWORLD_CUA_BIN`、`OSWORLD_CUA_CONFIG_PATH`、`OSWORLD_CUA_REPO_ROOT` 等默认从仓库根目录 `.env` 读取
 - CLI 参数优先级高于 `.env`
 - `.env` 不提交到仓库，代码中不保留本机 CUA 路径硬编码
+- 后续服务化时，可以先由 Runtime/bootstrap 完成 TOS 下载和配置渲染，再把本地路径注入给现有 runner
 
 当前文档包括：
 
@@ -96,6 +97,7 @@ Web 展示是只读模式，只暴露 `result_root` 内的 artifacts。
 - [下一阶段整体规划与测试点](./NEXT_PHASE_PLAN_AND_TEST_POINTS_zh.md)
 - [评测 Case 扩展与 CUA 版本兼容策略](./EVALUATION_CASE_AND_CUA_VERSION_STRATEGY_zh.md)
 - [测试输入与报告展示规划](./TEST_INPUTS_AND_REPORTING_PLAN_zh.md)
+- [CUA 分发与配置方案](./CUA_DISTRIBUTION_AND_CONFIG_zh.md)
 - [伪代码实现草案](./PSEUDOCODE_IMPLEMENTATION_zh.md)
 - [验收标准](./ACCEPTANCE_CRITERIA_zh.md)
 - [总体任务清单](./MASTER_CHECKLIST_zh.md)

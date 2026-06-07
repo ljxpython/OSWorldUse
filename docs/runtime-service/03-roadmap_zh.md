@@ -18,6 +18,7 @@
 - 明确 Manager 入口和执行节点地址模型，优先支持 `ip:port`，域名作为可选别名。
 - 落地 DB 真相源的状态存储和租约表。
 - 把 `validate / start / status / cancel / artifacts` 的请求响应和最小时序钉死。
+- 把 Runtime Manager 的状态机和故障收敛边界钉死。
 
 ### 阶段 3：故障恢复和扩容
 
@@ -34,12 +35,14 @@
 - 多节点部署后不会出现重复 lease。
 - 同一份输入在不同节点上行为一致。
 
+## 已确认结论
+
+- lease 的真相源是 DB，Redis 只做可选加速层。
+- 执行节点第一版可以直接用 `ip:port`，节点级域名只是地址别名。
+- blackbox 和 vm_native 统一进同一个 Runtime Service，用 `runtime_mode` 区分执行路径。
+- 节点异常后，由 Runtime Manager 收敛 `runtime_tasks`、`runtime_run_bindings` 和 `resource_leases`，平台侧再收敛 `EvaluationRun`。
+- artifact 默认上传共享对象存储，平台只 ingest manifest，不扫本机目录。
+
 ## 待确认问题
 
-1. lease 存储是直接用数据库，还是单独用 Redis。
-2. 多节点是共享一批 ECS，还是每个节点自己维护独立池。
-3. blackbox 和 vm_native 是统一 Runtime Service，还是拆成两个 profile。
-4. 节点异常后，run 的最终状态由谁收敛。
-5. 产物是直接进对象存储，还是先落地再异步上传。
-6. 执行节点地址第一版是否只用 `ip:port`，还是同时要求内部域名。
-7. lease 的真相源是否明确为 DB，Redis 是否只作为可选加速层。
+1. 多节点是共享一批 ECS，还是每个节点自己维护独立池。
