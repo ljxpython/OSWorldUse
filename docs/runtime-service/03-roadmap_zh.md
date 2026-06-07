@@ -4,6 +4,7 @@
 
 ### 阶段 1：单节点 PoC
 
+- 按 XUA-Eval `runtimes/osworld/` 独立 package 落 Runtime Service 骨架。
 - 跑通 `blackbox`。
 - 跑通 `vm_native`。
 - 统一 `result_dir`、summary、artifact manifest。
@@ -40,6 +41,7 @@
 - lease 的真相源是 DB，Redis 只做可选加速层。
 - 执行节点第一版可以直接用 `ip:port`，节点级域名只是地址别名。
 - blackbox 和 vm_native 统一进同一个 Runtime Service，用 `runtime_mode` 区分执行路径。
+- Runtime 包装代码优先放在 XUA-Eval 的 `runtimes/osworld/`，OSWorld 仓库只保留评测脚本和必要兼容补丁。
 - 节点异常后，由 Runtime Manager 收敛 `runtime_tasks`、`runtime_run_bindings` 和 `resource_leases`，平台侧再收敛 `EvaluationRun`。
 - artifact 默认上传共享对象存储，平台只 ingest manifest，不扫本机目录。
 

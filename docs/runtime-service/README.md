@@ -21,6 +21,7 @@
 | DDL 草案 | [08 DDL 草案](./08-ddl-draft_zh.md) | PostgreSQL 落表、约束、索引 |
 | 调度与可靠性 | [09 资源调度与可靠性](./09-scheduling-and-reliability_zh.md) | 并发、背压、重试、取消语义 |
 | 产物与归档 | [10 Artifact Manifest 与结果归档](./10-artifact-manifest-and-result-archive_zh.md) | manifest、TOS、访问方式 |
+| 实现落地蓝图 | [11 Runtime 实现蓝图](./11-implementation-blueprint_zh.md) | Runtime 包装目录、OSWorld 配合点、开发顺序 |
 
 ## 文档
 
@@ -34,11 +35,12 @@
 - [08 DDL 草案](./08-ddl-draft_zh.md)
 - [09 资源调度与可靠性](./09-scheduling-and-reliability_zh.md)
 - [10 Artifact Manifest 与结果归档](./10-artifact-manifest-and-result-archive_zh.md)
+- [11 Runtime 实现蓝图](./11-implementation-blueprint_zh.md)
 
 ## 当前主线
 
 1. `06` 是当前对外接口、参数、响应、时序的主契约。
-2. `05 / 07 / 08 / 09 / 10` 分别负责字段、状态机、DDL、调度、产物。
+2. `05 / 07 / 08 / 09 / 10 / 11` 分别负责字段、状态机、DDL、调度、产物、实现落地。
 3. `01 / 02 / 03 / 04` 更多是背景、路由、规划和讨论材料。
 
 ## 当前结论

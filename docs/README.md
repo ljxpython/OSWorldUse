@@ -78,6 +78,7 @@
 
 - [OSWorld Runtime Service 方案讨论目录](./runtime-service/README.md)
 - [OSWorld Runtime Service 路由与地址约定](./runtime-service/04-routing-and-addressing_zh.md)
+- [OSWorld Runtime Service 实现蓝图](./runtime-service/11-implementation-blueprint_zh.md)
 
 ## CUA OSWorld Adapter
 
