@@ -201,8 +201,12 @@
 作用：
 
 - 校验执行模式、case 选择、资源池配置和 `artifact_storage_mode`。
+- 新链路优先校验平台冻结后的 `case_snapshot`；旧链路里的 `case_selection.domain`、`case_selection.case_ids` 和 `run_options.test_all_meta_path` 只作为过渡兼容。
+- OSWorld 请求中所有 case 必须满足 `framework_key=osworld`，且必须有 `domain` 和 `external_id`。
 - 检查容量是否足够。
 - 返回 sanitized command preview 和 `bootstrap_snapshot`。
+
+Suite / case 快照规则见 [12 Suite / Case 快照与临时 test_all_meta_path 契约](./12-suite-case-runtime-contract_zh.md)。
 
 ### start
 
@@ -214,9 +218,10 @@
 2. 创建 `runtime_tasks` 记录。
 3. 解析并落库本次要用的 `bootstrap_snapshot`。
 4. 在同一事务里写 `resource_leases` 和 `runtime_run_bindings`。
-5. 启动 OSWorld subprocess。
-6. 把 `runtime_run_id`、`base_url_snapshot`、`lease_id` 落库。
-7. 根据 `artifact_storage_mode` 选择对象存储上传或本地落盘。
+5. 如果请求带 `case_snapshot`，生成并保存 `generated_suite.json`。
+6. 启动 OSWorld subprocess，命令中使用 `--test_all_meta_path <generated_suite.json>`。
+7. 把 `runtime_run_id`、`base_url_snapshot`、`lease_id` 落库。
+8. 根据 `artifact_storage_mode` 选择对象存储上传或本地落盘。
 
 ### status
 

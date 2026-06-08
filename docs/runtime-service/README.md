@@ -22,6 +22,8 @@
 | 调度与可靠性 | [09 资源调度与可靠性](./09-scheduling-and-reliability_zh.md) | 并发、背压、重试、取消语义 |
 | 产物与归档 | [10 Artifact Manifest 与结果归档](./10-artifact-manifest-and-result-archive_zh.md) | manifest、TOS、访问方式 |
 | 实现落地蓝图 | [11 Runtime 实现蓝图](./11-implementation-blueprint_zh.md) | Runtime 包装目录、OSWorld 配合点、开发顺序 |
+| Suite / Case Catalog 与快照 | [12 Suite / Case Catalog、快照与临时 test_all_meta_path 契约](./12-suite-case-runtime-contract_zh.md) | Runtime 如何暴露只读 catalog、消费平台 case snapshot 并生成临时 JSON |
+| Suite / Case Catalog 开发清单 | [13 Suite / Case Catalog 开发任务清单](./13-suite-case-catalog-implementation-checklist_zh.md) | OSWorld 侧元数据来源、兼容性和联调验收任务 |
 
 ## 文档
 
@@ -36,6 +38,8 @@
 - [09 资源调度与可靠性](./09-scheduling-and-reliability_zh.md)
 - [10 Artifact Manifest 与结果归档](./10-artifact-manifest-and-result-archive_zh.md)
 - [11 Runtime 实现蓝图](./11-implementation-blueprint_zh.md)
+- [12 Suite / Case Catalog、快照与临时 test_all_meta_path 契约](./12-suite-case-runtime-contract_zh.md)
+- [13 Suite / Case Catalog 开发任务清单](./13-suite-case-catalog-implementation-checklist_zh.md)
 
 ## 当前主线
 
@@ -54,3 +58,4 @@
 7. 第一版平台做宏观排队，Runtime Manager 做准入和资源锁；已绑定任务不自动换节点重试。
 8. OSWorld 本地结果目录是私有实现，标准 artifact manifest 才是对外契约。
 9. 默认兼容 OSWorld 既有执行路径和功能，不做无关重构；只有为 runtime 接口、资源调度或必要的执行参数透传时，才允许做增量改动。
+10. Runtime 不管理平台 suite / case 生命周期；OSWorld 侧只提供只读 catalog API 供平台同步元数据，平台冻结 `case_snapshot` 后，Runtime 只校验、生成临时 `generated_suite.json`，并传给 OSWorld 原生 `--test_all_meta_path`。

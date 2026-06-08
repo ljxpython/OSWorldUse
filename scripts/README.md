@@ -59,6 +59,53 @@ python scripts/python/run_multienv.py \
 bash scripts/bash/run_dart_gui.sh [args]
 ```
 
+### XUA OSWorld Runtime Local Service
+
+`scripts/bash/xua_osworld_runtime_local.sh` is only responsible for the OSWorld
+Runtime API service used by XUA-Eval local integration testing. It does not start
+the XUA-Eval platform API or web console.
+
+Run from the OSWorld repository root:
+
+```bash
+bash scripts/bash/xua_osworld_runtime_local.sh start
+bash scripts/bash/xua_osworld_runtime_local.sh status
+bash scripts/bash/xua_osworld_runtime_local.sh logs
+bash scripts/bash/xua_osworld_runtime_local.sh stop
+```
+
+清空 Runtime 本地状态：
+
+```bash
+bash scripts/bash/xua_osworld_runtime_local.sh reset
+```
+
+`reset` 会先停止 Runtime，然后清理 `XUA_LOCAL_E2E_DIR` 下的 Runtime 状态库、
+Runtime 结果目录、bootstrap 目录以及 Runtime 自己的日志和 pid 文件。它不会清理
+XUA-Eval 平台侧的 SQLite、artifact storage 或 Web/API 日志。需要清整条本地链路
+时，使用 XUA-Eval 侧控制脚本的 `reset`。
+
+Default endpoint:
+
+```text
+http://127.0.0.1:7001/v1
+```
+
+Useful overrides:
+
+```bash
+export XUAEVAL_HOME="/Users/bytedance/PycharmProjects/work/xua-eval"
+export XUA_LOCAL_E2E_DIR="/tmp/xua-osworld-e2e-local"
+export OSWORLD_RUNTIME_PORT="7001"
+```
+
+For the full local chain, prefer the XUA-Eval side controller:
+
+```bash
+cd "/Users/bytedance/PycharmProjects/work/xua-eval"
+bash scripts/local-osworld-e2e/local_osworld_e2e.sh start
+```
+
 ### Manual Task Examination
 
 For manual verification and examination of specific benchmark tasks:
