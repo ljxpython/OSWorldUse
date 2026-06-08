@@ -267,6 +267,7 @@ GET /v1/catalog/cases/{external_id}
 - 如果平台还没有发 `case_snapshot`，Runtime 可以继续兼容旧字段 `case_external_ids` / `case_selection.case_ids` / `case_selection.domain`。
 - 新链路优先使用 `case_snapshot`，旧字段只作为过渡兼容。
 - 如果同时提供 `case_snapshot` 和 `run_options.test_all_meta_path`，正式运行优先使用 `case_snapshot` 生成的临时 JSON；`run_options.test_all_meta_path` 只作为兼容或手工调试输入。
+- `artifact_storage_mode=tos` 表示生成 TOS URI 并按上传策略处理；`artifact_storage_mode=local_path` 表示本地调试产物，manifest 中 artifact 使用绝对本地路径，平台可以入库 metadata 但不要求生成访问 URL；`local` 作为 `local_path` 兼容别名。
 
 ## validate 行为
 

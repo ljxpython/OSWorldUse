@@ -17,6 +17,18 @@ RUNTIME_STATE_DB="${OSWORLD_RUNTIME_STATE_DB:-${XUA_LOCAL_E2E_DIR}/runtime.sqlit
 RUNTIME_RESULT_ROOT="${OSWORLD_RUNTIME_RESULT_ROOT:-${XUA_LOCAL_E2E_DIR}/runtime-results}"
 RUNTIME_BOOTSTRAP_ROOT="${OSWORLD_RUNTIME_BOOTSTRAP_ROOT:-${XUA_LOCAL_E2E_DIR}/bootstrap}"
 
+state_label_suffix() {
+  if command -v shasum >/dev/null 2>&1; then
+    printf '%s' "${XUA_LOCAL_E2E_DIR}" | shasum | awk '{print substr($1, 1, 12)}'
+  else
+    printf '%s' "${XUA_LOCAL_E2E_DIR}" | cksum | awk '{print $1}'
+  fi
+}
+
+LAUNCHD_LABEL="com.xua.local-osworld-e2e.osworld-runtime.$(state_label_suffix)"
+LAUNCHD_PLIST_FILE="${PID_DIR}/osworld-runtime.plist"
+LAUNCHD_WRAPPER_FILE="${PID_DIR}/osworld-runtime-launchd.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -31,6 +43,7 @@ Environment overrides:
   XUAEVAL_HOME=/path/to/xua-eval
   XUA_LOCAL_E2E_DIR=/tmp/xua-osworld-e2e-local
   OSWORLD_RUNTIME_PORT=7001
+  XUA_LOCAL_E2E_USE_LAUNCHCTL=0
 EOF
 }
 
@@ -88,6 +101,51 @@ remove_runtime_path() {
   esac
 }
 
+launchd_domain() {
+  echo "gui/$(id -u)"
+}
+
+use_launchctl() {
+  [[ "${XUA_LOCAL_E2E_USE_LAUNCHCTL:-1}" == "1" ]] \
+    && [[ "$(uname -s)" == "Darwin" ]] \
+    && command -v launchctl >/dev/null 2>&1
+}
+
+write_launchd_plist() {
+  cat > "${LAUNCHD_PLIST_FILE}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${LAUNCHD_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>${LAUNCHD_WRAPPER_FILE}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>${LOG_FILE}</string>
+  <key>StandardErrorPath</key>
+  <string>${LOG_FILE}</string>
+</dict>
+</plist>
+EOF
+}
+
+bootout_launchd_job() {
+  if ! use_launchctl; then
+    return 0
+  fi
+
+  launchctl bootout "$(launchd_domain)/${LAUNCHD_LABEL}" >/dev/null 2>&1 || true
+  launchctl bootout "$(launchd_domain)" "${LAUNCHD_PLIST_FILE}" >/dev/null 2>&1 || true
+}
+
 running_pid() {
   if [[ -f "${PID_FILE}" ]]; then
     local pid
@@ -97,6 +155,17 @@ running_pid() {
       return 0
     fi
   fi
+  return 1
+}
+
+wait_for_pid_file() {
+  local seconds="${1:-10}"
+  for _ in $(seq 1 "$((seconds * 10))"); do
+    if [[ -s "${PID_FILE}" ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
   return 1
 }
 
@@ -138,35 +207,75 @@ start_runtime() {
     "${RUNTIME_RESULT_ROOT}" \
     "${RUNTIME_BOOTSTRAP_ROOT}"
 
-  (
-    set -euo pipefail
-    if [[ "${OSWORLD_SOURCE_ENV:-1}" == "1" && -f "${OSWORLD_ROOT}/.env" ]]; then
-      set -a
-      # shellcheck source=/dev/null
-      source "${OSWORLD_ROOT}/.env"
-      set +a
-    fi
+  rm -f "${PID_FILE}"
+  if use_launchctl; then
+    cat > "${LAUNCHD_WRAPPER_FILE}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH="${PATH}"
+if [[ "${OSWORLD_SOURCE_ENV:-1}" == "1" && -f "${OSWORLD_ROOT}/.env" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "${OSWORLD_ROOT}/.env"
+  set +a
+fi
+export OSWORLD_HOME="${OSWORLD_HOME:-${OSWORLD_ROOT}}"
+export OSWORLD_RUNTIME_HOST="${OSWORLD_RUNTIME_HOST:-${HOST}}"
+export OSWORLD_RUNTIME_PORT="${OSWORLD_RUNTIME_PORT:-${PORT}}"
+export OSWORLD_RUNTIME_PUBLIC_BASE_URL="${OSWORLD_RUNTIME_PUBLIC_BASE_URL:-http://127.0.0.1:${PORT}/v1}"
+export OSWORLD_RUNTIME_INSTANCE_ID="${OSWORLD_RUNTIME_INSTANCE_ID:-osworld-runtime-local-e2e}"
+export OSWORLD_RESOURCE_PROFILE_ID="${OSWORLD_RESOURCE_PROFILE_ID:-osworld-volcengine-e2e}"
+export OSWORLD_RUNTIME_MAX_CONCURRENCY="${OSWORLD_RUNTIME_MAX_CONCURRENCY:-1}"
+export OSWORLD_RUNTIME_STATE_DB="${RUNTIME_STATE_DB}"
+export OSWORLD_RUNTIME_RESULT_ROOT="${RUNTIME_RESULT_ROOT}"
+export OSWORLD_RUNTIME_BOOTSTRAP_ROOT="${RUNTIME_BOOTSTRAP_ROOT}"
+export OSWORLD_RUNTIME_EXECUTION_BACKEND="${OSWORLD_RUNTIME_EXECUTION_BACKEND:-subprocess}"
+cd "${OSWORLD_ROOT}"
+echo "\$\$" > "${PID_FILE}"
+exec uv run --project "${RUNTIME_PROJECT}" xua-osworld-runtime
+EOF
+    chmod +x "${LAUNCHD_WRAPPER_FILE}"
+    write_launchd_plist
+    bootout_launchd_job
+    launchctl bootstrap "$(launchd_domain)" "${LAUNCHD_PLIST_FILE}"
+  else
+    (
+      set -euo pipefail
+      if [[ "${OSWORLD_SOURCE_ENV:-1}" == "1" && -f "${OSWORLD_ROOT}/.env" ]]; then
+        set -a
+        # shellcheck source=/dev/null
+        source "${OSWORLD_ROOT}/.env"
+        set +a
+      fi
 
-    export OSWORLD_HOME="${OSWORLD_HOME:-${OSWORLD_ROOT}}"
-    export OSWORLD_RUNTIME_HOST="${OSWORLD_RUNTIME_HOST:-${HOST}}"
-    export OSWORLD_RUNTIME_PORT="${OSWORLD_RUNTIME_PORT:-${PORT}}"
-    export OSWORLD_RUNTIME_PUBLIC_BASE_URL="${OSWORLD_RUNTIME_PUBLIC_BASE_URL:-http://127.0.0.1:${OSWORLD_RUNTIME_PORT}/v1}"
-    export OSWORLD_RUNTIME_INSTANCE_ID="${OSWORLD_RUNTIME_INSTANCE_ID:-osworld-runtime-local-e2e}"
-    export OSWORLD_RESOURCE_PROFILE_ID="${OSWORLD_RESOURCE_PROFILE_ID:-osworld-volcengine-e2e}"
-    export OSWORLD_RUNTIME_MAX_CONCURRENCY="${OSWORLD_RUNTIME_MAX_CONCURRENCY:-1}"
-    export OSWORLD_RUNTIME_STATE_DB="${RUNTIME_STATE_DB}"
-    export OSWORLD_RUNTIME_RESULT_ROOT="${RUNTIME_RESULT_ROOT}"
-    export OSWORLD_RUNTIME_BOOTSTRAP_ROOT="${RUNTIME_BOOTSTRAP_ROOT}"
-    export OSWORLD_RUNTIME_EXECUTION_BACKEND="${OSWORLD_RUNTIME_EXECUTION_BACKEND:-subprocess}"
+      export OSWORLD_HOME="${OSWORLD_HOME:-${OSWORLD_ROOT}}"
+      export OSWORLD_RUNTIME_HOST="${OSWORLD_RUNTIME_HOST:-${HOST}}"
+      export OSWORLD_RUNTIME_PORT="${OSWORLD_RUNTIME_PORT:-${PORT}}"
+      export OSWORLD_RUNTIME_PUBLIC_BASE_URL="${OSWORLD_RUNTIME_PUBLIC_BASE_URL:-http://127.0.0.1:${OSWORLD_RUNTIME_PORT}/v1}"
+      export OSWORLD_RUNTIME_INSTANCE_ID="${OSWORLD_RUNTIME_INSTANCE_ID:-osworld-runtime-local-e2e}"
+      export OSWORLD_RESOURCE_PROFILE_ID="${OSWORLD_RESOURCE_PROFILE_ID:-osworld-volcengine-e2e}"
+      export OSWORLD_RUNTIME_MAX_CONCURRENCY="${OSWORLD_RUNTIME_MAX_CONCURRENCY:-1}"
+      export OSWORLD_RUNTIME_STATE_DB="${RUNTIME_STATE_DB}"
+      export OSWORLD_RUNTIME_RESULT_ROOT="${RUNTIME_RESULT_ROOT}"
+      export OSWORLD_RUNTIME_BOOTSTRAP_ROOT="${RUNTIME_BOOTSTRAP_ROOT}"
+      export OSWORLD_RUNTIME_EXECUTION_BACKEND="${OSWORLD_RUNTIME_EXECUTION_BACKEND:-subprocess}"
 
-    cd "${OSWORLD_ROOT}"
-    if command -v rtk >/dev/null 2>&1; then
-      exec rtk uv run --project "${RUNTIME_PROJECT}" xua-osworld-runtime
-    fi
-    exec uv run --project "${RUNTIME_PROJECT}" xua-osworld-runtime
-  ) >>"${LOG_FILE}" 2>&1 &
+      cd "${OSWORLD_ROOT}"
+      # Long-running local services must not be wrapped by rtk. Use nohup so
+      # they survive when the outer rtk command exits.
+      nohup uv run --project "${RUNTIME_PROJECT}" xua-osworld-runtime \
+        >>"${LOG_FILE}" 2>&1 &
+      echo "$!" > "${PID_FILE}"
+    )
+  fi
 
-  local pid="$!"
+  local pid
+  if ! wait_for_pid_file 10; then
+    echo "[xua-runtime] pid file was not created: ${PID_FILE}" >&2
+    tail -n 80 "${LOG_FILE}" >&2 || true
+    exit 1
+  fi
+  pid="$(cat "${PID_FILE}")"
   echo "${pid}" > "${PID_FILE}"
   echo "[xua-runtime] started pid=${pid}"
   echo "[xua-runtime] log=${LOG_FILE}"
@@ -210,6 +319,8 @@ stop_pid() {
 }
 
 stop_runtime() {
+  bootout_launchd_job
+
   if [[ -f "${PID_FILE}" ]]; then
     stop_pid "$(cat "${PID_FILE}")" "pid-file"
     rm -f "${PID_FILE}"
