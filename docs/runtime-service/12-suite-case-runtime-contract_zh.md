@@ -121,6 +121,72 @@ GET /v1/catalog/suites?page=1&page_size=50&keyword=test
 }
 ```
 
+### Get Catalog Snapshot
+
+```text
+GET /v1/catalog/snapshot
+```
+
+用途：给平台“一键同步评测资源”使用。该接口把 catalog info、suite 列表和每个 suite 下的 case 一次性返回，减少平台同步时的分页编排成本。
+
+响应：
+
+```json
+{
+  "info": {
+    "framework_key": "osworld",
+    "runtime_type": "osworld",
+    "catalog_version": "osworld:<git_sha>:<evaluation_examples_hash>",
+    "osworld_revision": "<git_sha>",
+    "suite_roots": ["evaluation_examples"],
+    "case_roots": ["evaluation_examples/examples"],
+    "generated_at": "2026-06-08T00:00:00Z",
+    "supports": ["suites", "cases", "snapshot"]
+  },
+  "suites": [
+    {
+      "framework_key": "osworld",
+      "suite_key": "test_small",
+      "name": "test_small",
+      "version": "osworld:<git_sha>:<evaluation_examples_hash>",
+      "source_ref": "evaluation_examples/test_small.json",
+      "source_hash": "sha256:...",
+      "case_count": 34,
+      "domains": ["chrome", "gimp"],
+      "metadata": {},
+      "raw_index": null
+    }
+  ],
+  "cases_by_suite": {
+    "test_small": [
+      {
+        "framework_key": "osworld",
+        "external_id": "bb5e4c0d-f964-439c-8b...",
+        "domain": "chrome",
+        "name": "bb5e4c0d-f964-439c-8b...",
+        "prompt": "Open Chrome and ...",
+        "source_ref": "evaluation_examples/examples/chrome/bb5e4c0d-f964-439c-8b....json",
+        "source_hash": "sha256:...",
+        "runnable_status": "ready",
+        "raw_metadata": {}
+      }
+    ]
+  },
+  "total_suites": 1,
+  "total_cases": 34,
+  "catalog_version": "osworld:<git_sha>:<evaluation_examples_hash>"
+}
+```
+
+规则：
+
+- `snapshot` 是只读接口，不启动 VM、不执行 agent、不写平台数据库。
+- `suites[*].raw_index` 默认返回 `null`，避免把 suite index 细节暴露给普通同步流程；需要调试时仍可调用 `GET /v1/catalog/suites/{suite_key}`。
+- `cases_by_suite` 的 key 必须等于 `suite_key`。
+- `total_cases` 按 suite membership 计数，不做跨 suite 去重。
+- 如果 Runtime 不支持该接口，平台可以回退到 `info/suites/suite cases` 分页接口。
+- 如果 Runtime 支持该接口，`supports` 应包含 `snapshot`。
+
 ### Get Suite
 
 ```text

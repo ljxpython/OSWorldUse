@@ -12,8 +12,8 @@
 evaluation_examples/*.json
 evaluation_examples/examples/{domain}/{case_id}.json
   -> Runtime catalog scanner
-  -> /v1/catalog/*
-  -> XUA-Eval runtime_catalog importer
+  -> /v1/catalog/* 或 /v1/catalog/snapshot
+  -> XUA-Eval 一键同步评测资源
 ```
 
 ## 本仓库边界
@@ -145,6 +145,28 @@ OSWorld 仓库不负责：
   - `/v1/catalog/info` 返回 `framework_key=osworld` 和 `catalog_version=osworld:c38104da628f:...`。
   - `/v1/catalog/suites?keyword=test_small` 返回 total=1，suite_key=`test_small`。
   - `/v1/catalog/suites/test_small/cases?page_size=2` 返回 total=39。
+
+## 阶段 3.5：Catalog Snapshot 与一键同步
+
+- [x] O35-01 Runtime 暴露 snapshot。
+  - 接口：`GET /v1/catalog/snapshot`。
+  - 响应：`info/suites/cases_by_suite/total_suites/total_cases/catalog_version`。
+  - 验证：`rtk uv run pytest -q tests/test_osworld_runtime_catalog.py`。
+
+- [x] O35-02 平台优先使用 snapshot。
+  - 行为：XUA-Eval `POST /api/v1/catalog-sync` 优先调用 Runtime snapshot；如果 Runtime 返回 404，回退到旧分页接口。
+  - 验证：平台同步后 `/suites` 有 OSWorld suite，`/cases` 有 OSWorld case。
+
+- [x] O35-03 页面一键同步验证。
+  - 工具：Browser。
+  - 验证：`/suites` 和 `/cases` 都展示 `同步评测资源`，不要求用户输入 `suite_key`。
+
+阶段 3.5 验证记录：
+
+- `rtk uv run pytest -q tests/test_osworld_runtime_catalog.py`：6 passed，验证 `GET /v1/catalog/snapshot` 返回 suite 与 `cases_by_suite`。
+- `rtk uv run pytest -q tests/test_runtime_catalog_client.py tests/test_suite_catalog_import_service.py tests/test_catalog_sync_service.py tests/test_osworld_runtime_catalog.py`：23 passed，验证平台优先使用 snapshot，且 Runtime 不支持 snapshot 时可回退分页接口。
+- Browser 验证 `/suites`：存在 `同步评测资源`，弹窗不要求输入 `suite_key`；同步后显示 `状态=completed · 评测集=29/29 · 失败=0`。
+- Browser 验证 `/cases`：存在 `同步评测资源`，表头已中文化；同步后匹配用例为 410。
 
 ## 阶段 4：最终验收
 
