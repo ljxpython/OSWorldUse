@@ -168,6 +168,20 @@ OSWorld 仓库不负责：
 - Browser 验证 `/suites`：存在 `同步评测资源`，弹窗不要求输入 `suite_key`；同步后显示 `状态=completed · 评测集=29/29 · 失败=0`。
 - Browser 验证 `/cases`：存在 `同步评测资源`，表头已中文化；同步后匹配用例为 410。
 
+## 阶段 3.6：Case 内容展示契约补齐
+
+- [ ] O36-01 Runtime catalog 明确 `instruction` 映射。
+  - 行为：OSWorld case JSON 的 `instruction` 映射到 `CatalogCaseOut.prompt`，平台前端展示为 `指令`。
+  - 验证：`GET /v1/catalog/snapshot` 中 OSWorld case 的 `prompt` 等于源文件 `instruction`。
+
+- [ ] O36-02 Runtime catalog 保留完整原始 case JSON。
+  - 行为：`CatalogCaseOut.raw_metadata` 保留完整 OSWorld case JSON；`source_ref` 指向 `evaluation_examples/examples/<domain>/<case_id>.json`。
+  - 验证：平台点击 `/cases` 中同步来的 OSWorld case，能看到原始 JSON、`setup_config` 和 `grading_criteria`。
+
+- [ ] O36-03 平台一键同步入口按框架驱动。
+  - 行为：平台同步弹窗不再展示 Runtime 服务，后端根据 `framework_key=osworld` 解析默认 catalog RuntimeProfile。
+  - 验证：Browser 在 `/suites` 和 `/cases` 打开同步弹窗，只看到评测框架；OSWorld 同步成功，其他框架给出暂不支持提示。
+
 ## 阶段 4：最终验收
 
 - [ ] O04-01 OSWorld 全量单测。

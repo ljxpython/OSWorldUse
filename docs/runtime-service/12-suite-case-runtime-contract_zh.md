@@ -167,8 +167,16 @@ GET /v1/catalog/snapshot
         "prompt": "Open Chrome and ...",
         "source_ref": "evaluation_examples/examples/chrome/bb5e4c0d-f964-439c-8b....json",
         "source_hash": "sha256:...",
+        "setup_config": {},
+        "grading_type": "check_include_exclude",
+        "grading_criteria": {},
         "runnable_status": "ready",
-        "raw_metadata": {}
+        "raw_metadata": {
+          "id": "bb5e4c0d-f964-439c-8b...",
+          "instruction": "Open Chrome and ...",
+          "config": {},
+          "evaluator": {}
+        }
       }
     ]
   },
@@ -186,6 +194,10 @@ GET /v1/catalog/snapshot
 - `total_cases` 按 suite membership 计数，不做跨 suite 去重。
 - 如果 Runtime 不支持该接口，平台可以回退到 `info/suites/suite cases` 分页接口。
 - 如果 Runtime 支持该接口，`supports` 应包含 `snapshot`。
+- OSWorld case JSON 的 `instruction` 必须映射到 `CatalogCaseOut.prompt`，平台前端会把它展示为 `指令`。
+- `raw_metadata` 必须保留完整 OSWorld case JSON，内容对应 `source_ref` 指向的 `evaluation_examples/examples/<domain>/<case_id>.json` 文件。
+- `setup_config` 对应原始 JSON 的 `config`，`grading_criteria` 对应原始 JSON 的 `evaluator`。
+- `name` 只作为兼容短标识，不作为平台展示 OSWorld case 任务内容的主字段。
 
 ### Get Suite
 
@@ -224,11 +236,19 @@ GET /v1/catalog/suites/{suite_key}/cases?page=1&page_size=100
   "framework_key": "osworld",
   "external_id": "bb5e4c0d-f964-439c-8b...",
   "domain": "chrome",
-  "name": "Open Chrome and ...",
+  "name": "bb5e4c0d-f964-439c-8b...",
   "prompt": "Open Chrome and ...",
   "source_ref": "evaluation_examples/examples/chrome/bb5e4c0d-f964-439c-8b....json",
   "source_hash": "sha256:...",
-  "raw_metadata": {}
+  "setup_config": {},
+  "grading_type": "check_include_exclude",
+  "grading_criteria": {},
+  "raw_metadata": {
+    "id": "bb5e4c0d-f964-439c-8b...",
+    "instruction": "Open Chrome and ...",
+    "config": {},
+    "evaluator": {}
+  }
 }
 ```
 
@@ -263,14 +283,19 @@ GET /v1/catalog/cases/{external_id}
   "framework_key": "osworld",
   "external_id": "bb5e4c0d-f964-439c-8b...",
   "domain": "chrome",
-  "name": "Open Chrome and ...",
+  "name": "bb5e4c0d-f964-439c-8b...",
   "prompt": "Open Chrome and ...",
   "setup_config": {},
-  "grading_type": "rule",
+  "grading_type": "check_include_exclude",
   "grading_criteria": {},
   "source_ref": "evaluation_examples/examples/chrome/bb5e4c0d-f964-439c-8b....json",
   "source_hash": "sha256:...",
-  "raw_metadata": {}
+  "raw_metadata": {
+    "id": "bb5e4c0d-f964-439c-8b...",
+    "instruction": "Open Chrome and ...",
+    "config": {},
+    "evaluator": {}
+  }
 }
 ```
 
