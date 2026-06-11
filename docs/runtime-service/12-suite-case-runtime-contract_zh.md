@@ -59,13 +59,13 @@ Catalog API 是只读接口，供平台同步 OSWorld suite / case 元数据。�
 
 第一版 catalog 来源：
 
-- suite/index 文件：`evaluation_examples/*.json` 以及明确纳入白名单的 `evaluation_examples/**/suites/*.json`。
+- suite/index 文件：仅 `evaluation_examples/*.json`，也就是 `evaluation_examples` 第一层 JSON。
 - case 本体优先来自 `evaluation_examples/examples/{domain}/{case_id}.json`。Windows 和 CUA 自定义 case 可来自 `evaluation_examples/examples_windows/{domain}/{case_id}.json`、`evaluation_examples/cua_blackbox/cases/{domain}/{case_id}.json` 等受控候选根。
 
 `suite_key` 生成规则：
 
-- 根目录 suite 使用文件名去掉 `.json`，例如 `evaluation_examples/test_small.json` -> `test_small`。
-- 子目录 suite 使用相对路径去掉 `.json` 后把 `/` 替换为 `:`，例如 `evaluation_examples/cua_blackbox/suites/windows_office_core.json` -> `cua_blackbox:suites:windows_office_core`。
+- suite 使用文件名去掉 `.json`，例如 `evaluation_examples/test_small.json` -> `test_small`。
+- `evaluation_examples/**/suites/*.json` 这类嵌套 suite 不进入平台“一键同步评测资源”的默认 catalog。
 - `suite_key` 必须稳定，不跟随部署机器绝对路径变化。
 
 ### Get Catalog Info

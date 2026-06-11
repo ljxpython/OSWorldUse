@@ -53,6 +53,7 @@ Runtime command builder 只把 allowlist 参数映射到 OSWorld 脚本。OSWorl
 --domain
 --example_id
 --model
+--report_title
 --result_dir
 --num_envs
 --max_steps
@@ -63,6 +64,8 @@ Runtime command builder 只把 allowlist 参数映射到 OSWorld 脚本。OSWorl
 ```
 
 如果新增参数用于 TOS 上传、CUA config 或 result manifest，必须兼容旧命令，不破坏本地直接跑脚本。
+
+平台侧的 `runtime_mode` 和 `cua_config_template_id` 先在 Runtime bootstrap 里解析完成，再把本地化后的 `OSWORLD_CUA_CONFIG_PATH` 传给 OSWorld 子进程。
 
 ### 2. `result_dir/result.txt` 续跑语义
 
@@ -124,7 +127,7 @@ OSWorld result_dir
 4. result reader：读取 result_dir，保留 `result.txt` 续跑语义。
 5. manifest builder：生成标准 artifact manifest。
 6. TOS uploader：按 case 上传 artifact，run 结束后生成 summary manifest。
-7. CUA bootstrap：从 TOS 拉取 bundle/config，设置 `OSWORLD_CUA_BIN` 和 `OSWORLD_CUA_CONFIG_PATH`。
+7. CUA bootstrap：从 TOS 拉取 bundle/config，或把平台配置模板渲染到本地，设置 `OSWORLD_CUA_BIN` 和 `OSWORLD_CUA_CONFIG_PATH`。
 
 ## 状态存储口径
 

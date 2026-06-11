@@ -373,6 +373,61 @@ uv run python scripts/python/check_cua_case_acceptance.py \
 | `--cua_max_step_duration_ms` | `OSWORLD_CUA_MAX_STEP_DURATION_MS` | 可写入 env |
 | `--cua_timeout_grace_seconds` | `OSWORLD_CUA_TIMEOUT_GRACE_SECONDS` | 可写入 env |
 
+## 7.1.1 服务化暴露口径
+
+如果黑盒 runner 未来被 XUA-Eval 平台或其他服务调用，普通用户/前端不应直接看到完整 runner CLI，而只应看到业务参数和少量运行参数。
+
+建议对外暴露的参数：
+
+| 层级 | 参数 |
+| --- | --- |
+| 业务选择 | `runtime_mode`、`suite_id`、`case_selection`、`cua_config_template_id` |
+| 运行参数 | `model`、`report_title`、`log_level` |
+| 运行强度 | `num_envs`、`max_steps`、`env_ready_sleep`、`settle_sleep`、`cua_max_duration_ms`、`cua_max_step_duration_ms`、`cua_timeout_grace_seconds` |
+| 结果控制 | `enable_recording`、`build_report`、`artifact_storage_mode` |
+
+其中：
+
+- `runtime_mode` 必须显式选择，第一版只允许 `blackbox` / `vm_native`。
+- `artifact_storage_mode` 默认 `tos`，`local_path` 只用于本地调试。
+- `enable_recording` 默认开启，但仍保留为可切换开关。
+- `cua_config_template_id` 是平台侧配置文件模板管理的主键，不是 OSWorld 原生字段；前端录入/管理模板后，Runtime bootstrap 再把它物化成 `OSWORLD_CUA_CONFIG_PATH`.
+
+建议不对普通用户暴露的参数：
+
+- `provider_name`
+- `region`
+- `os_type`
+- `path_to_vm`
+- `model`
+- `result_dir`
+- `test_all_meta_path`
+- `cua_bin`
+- `cua_config_path`
+- `cua_repo_root`
+- `cua_runs_dir`
+- `cua_node_id`
+- `openclaw_bin`
+- `adapter_version`
+- `bridge_protocol_version`
+- `eval_profile`
+- `action_space`
+- `observation_type`
+- `screen_width`
+- `screen_height`
+- `client_password`
+- `cua_extra_args`
+- `task_proxy_mode`
+- `disable_task_proxy`
+
+这些隐藏参数由平台调度层、Runtime bootstrap 层或部署配置自动解析：
+
+- `cua_config_template_id` 只作为平台模板引用，运行时会被解析成本地配置文件路径；OSWorld 子进程只看到 `OSWORLD_CUA_CONFIG_PATH`。
+- `test_all_meta_path` 应由平台根据 `suite + case selection` 生成临时 JSON。
+- `result_dir` 应由运行节点自动生成和管理，不作为前端输入。
+- `cua_bin` / `cua_config_path` 由 Runtime bootstrap 从 TOS 或本地 `.env` 解析后注入。
+- `provider_name` / `region` / `path_to_vm` 属于部署层，不属于普通运行表单。
+
 以下运行时环境变量由 OSWorld 自动注入或覆盖后传给 CUA 子进程，不建议绕过 runner 直接手写依赖；其中 `OSWORLD_CUA_NODE_ID` 如果手动设置，只应作为 runner 默认入参使用：
 
 - `OSWORLD_CUA_BRIDGE_URL`

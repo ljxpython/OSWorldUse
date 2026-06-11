@@ -3,8 +3,10 @@
 ## 先定结论
 
 - `validate / start / status / cancel / artifacts` 就是 OSWorld Runtime 的全部外部语义。
+- `runtime_mode` 是必选项，第一版只允许 `blackbox` / `vm_native`。
 - `artifact_storage_mode` 默认 `tos`，`local_path` 只用于本地 smoke / 调试，不进入平台 ingest。
 - 默认上传策略是 case 级异步上传：case 结束后立即入队，run 结束时 flush 队列并生成最终 manifest。
+- `cua_config_template_id` 是平台侧模板选择器，Runtime bootstrap 负责把它物化为本地 `OSWORLD_CUA_CONFIG_PATH`。
 - `runtime_run_id` 识别一次运行，`runtime_instance_id` 识别承载节点，`lease_id` 识别资源占用。
 - `status / cancel / artifacts` 必须先查 `runtime_run_bindings` 再路由到绑定节点，不得经过共享域名的随机分发。
 - DB 是真相源，Redis 只做缓存或队列加速。
@@ -200,7 +202,7 @@
 
 作用：
 
-- 校验执行模式、case 选择、资源池配置和 `artifact_storage_mode`。
+- 校验必选的 `runtime_mode`、case 选择、资源池配置和 `artifact_storage_mode`。
 - 新链路优先校验平台冻结后的 `case_snapshot`；旧链路里的 `case_selection.domain`、`case_selection.case_ids` 和 `run_options.test_all_meta_path` 只作为过渡兼容。
 - OSWorld 请求中所有 case 必须满足 `framework_key=osworld`，且必须有 `domain` 和 `external_id`。
 - 检查容量是否足够。

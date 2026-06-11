@@ -61,14 +61,14 @@ OSWorld 仓库不负责：
 - [x] O01-01 确认 suite/index 扫描范围。
   - 默认范围：
     - `evaluation_examples/*.json`
-    - 明确白名单的 `evaluation_examples/**/suites/*.json`
+    - 不同步 `evaluation_examples/**/suites/*.json` 这类嵌套 suite
   - 验证：列出第一版暴露的 suite 文件清单。
 
 - [x] O01-02 确认 `suite_key` 稳定规则。
   - 规则：
     - 根目录 suite 使用文件名去掉 `.json`。
-    - 子目录 suite 使用相对路径去掉 `.json` 后把 `/` 替换为 `:`。
-  - 验证：`test_small`、`test_nogdrive`、`cua_blackbox:suites:windows_office_core` 等 key 稳定。
+    - 嵌套 suite 不生成 catalog `suite_key`。
+  - 验证：`test_small`、`test_nogdrive` 等第一层 key 稳定。
 
 - [x] O01-03 确认 case 文件存在性。
   - 内容：suite/index 中引用的每个 `(domain, case_id)` 优先定位到 `evaluation_examples/examples/{domain}/{case_id}.json`；Windows 和 CUA 自定义 case 会继续查 `examples_windows`、`cua_blackbox/cases` 等候选根。找不到时 catalog 返回 `runnable_status=missing_source`。
@@ -89,11 +89,11 @@ OSWorld 仓库不负责：
 
 - XUA-Eval Runtime catalog scanner 已实现 suite/index 扫描范围：
   - `evaluation_examples/*.json`
-  - `evaluation_examples/**/suites/*.json`
+  - 不包含 `evaluation_examples/**/suites/*.json`
 - `suite_key` 验证：
   - `evaluation_examples/test_small.json` -> `test_small`
-  - `evaluation_examples/cua_blackbox/suites/demo_custom_case.json` -> `cua_blackbox:suites:demo_custom_case`
-- `rtk uv run pytest -q tests/test_osworld_runtime_catalog.py`：5 passed，覆盖 suite discovery、case metadata、nested suite key、缺失 case、重复 external_id 冲突。
+  - `evaluation_examples/cua_blackbox/suites/demo_custom_case.json` 不进入 catalog
+- `rtk uv run pytest -q tests/test_osworld_runtime_catalog.py`：覆盖 suite discovery、case metadata、嵌套 suite 排除、缺失 case、重复 external_id 冲突。
 - 真实 OSWorld catalog smoke：
   - `/v1/catalog/suites?keyword=test_small` 返回 `test_small`。
   - `/v1/catalog/suites/test_small/cases?page_size=2` 返回 total=39，case 含 `domain/external_id/source_hash/source_ref`。
@@ -165,8 +165,8 @@ OSWorld 仓库不负责：
 
 - `rtk uv run pytest -q tests/test_osworld_runtime_catalog.py`：6 passed，验证 `GET /v1/catalog/snapshot` 返回 suite 与 `cases_by_suite`。
 - `rtk uv run pytest -q tests/test_runtime_catalog_client.py tests/test_suite_catalog_import_service.py tests/test_catalog_sync_service.py tests/test_osworld_runtime_catalog.py`：23 passed，验证平台优先使用 snapshot，且 Runtime 不支持 snapshot 时可回退分页接口。
-- Browser 验证 `/suites`：存在 `同步评测资源`，弹窗不要求输入 `suite_key`；同步后显示 `状态=completed · 评测集=29/29 · 失败=0`。
-- Browser 验证 `/cases`：存在 `同步评测资源`，表头已中文化；同步后匹配用例为 410。
+- Browser 验证 `/suites`：存在 `同步评测资源`，弹窗不要求输入 `suite_key`；历史验证时包含嵌套 suite，显示 `状态=completed · 评测集=29/29 · 失败=0`。当前扫描范围已收敛为 `evaluation_examples` 第一层 JSON。
+- Browser 验证 `/cases`：存在 `同步评测资源`，表头已中文化；历史验证时包含嵌套 suite，匹配用例为 410。当前同步结果以第一层 suite 为准。
 
 ## 阶段 3.6：Case 内容展示契约补齐
 

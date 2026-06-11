@@ -205,6 +205,17 @@ config 如果也走 TOS，优先级建议单独配置，不要和 binary package
 
 如果后续 CUA CLI 再补黑盒专用参数，优先在模板里改，不要把实验字段硬塞进 runner 主逻辑。
 
+## 平台配置模板管理
+
+服务化之后，前端管理的是“配置模板”，不是 OSWorld 本地文件路径本身。
+
+- 模板按 `runtime_mode` 分组，黑盒和 vm_native 分开维护。
+- 模板内容以版本化 JSON 保存，支持新建、复制、编辑、启停、设默认。
+- 模板对外只暴露模板 ID，建议命名为 `cua_config_template_id`。
+- Runtime bootstrap 负责把模板内容渲染成执行节点上的本地文件，然后注入 `OSWORLD_CUA_CONFIG_PATH`。
+- OSWorld runner 不直接感知模板管理，只认本地路径。
+- 如果模板也同步到 TOS，TOS 只承担分发与缓存，不改变平台侧的模板真相源。
+
 ## 启动流程
 
 服务节点上的黑盒启动顺序建议是：
